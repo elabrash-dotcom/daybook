@@ -280,6 +280,8 @@ button.side:hover .ic{background:var(--orange)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(104px + env(safe-area-inset-bottom,0px));z-index:50;background:var(--ink);color:var(--bg);padding:10px 10px 10px 18px;border-radius:18px;font-weight:700;display:flex;gap:12px;align-items:center;box-shadow:0 10px 30px rgba(0,0,0,.25);max-width:calc(100% - 40px)}
 .toast button{background:rgba(127,127,127,.3);color:inherit;padding:8px 14px;border-radius:12px;font-weight:800}
 .warn{background:#FFC857;color:#3a2410;font-weight:700;font-size:14px;padding:12px 16px;border-radius:18px}
+.updbar{background:var(--orange);color:#fff;font-weight:700;font-size:14px;padding:12px 16px;border-radius:18px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.updbar button{background:#fff;color:var(--orange);border:none;border-radius:12px;padding:8px 14px;font-weight:800;font-size:14px}
 @media (max-width:380px){.top h1{font-size:28px}.banner .art{width:80px;height:80px}.side{width:62px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 /* login */
@@ -312,6 +314,7 @@ button.side:hover .ic{background:var(--orange)}
 
 <div class="app" id="app" style="display:none">
   <div id="warn"></div>
+  <div id="updbar"></div>
   <div id="top" style="display:flex;flex-direction:column;gap:22px"></div>
   <section class="qa" id="qa" aria-label="Quick add">
     <form id="qaForm" autocomplete="off"><input id="qaInput" type="text" placeholder="What needs doing?" enterkeyhint="done" aria-label="New task"><button class="go" type="submit" aria-label="Add task"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></form>
@@ -636,6 +639,8 @@ function settingsSheet(){
       <div class="field"><span>History</span><div class="setgroup">
         <div class="setrow"><span class="nm">Finished tasks</span><span class="meta">${tasks.filter(t=>t.done).length} · ${tasks.length} total</span></div>
         <button type="button" class="setrow" data-clearold ${old?'':'disabled'} style="${old?'color:var(--danger)':'color:var(--ink-3)'}"><span class="nm" style="color:inherit">${armed?'Tap again to clear':'Clear finished tasks older than 90 days'}</span><span class="meta">${old}</span></button></div></div>
+      <div class="field"><span>App</span><div class="setgroup">
+        <button type="button" class="setrow" data-checkupdate><span class="nm">Check for updates</span><span class="meta" id="updCheckMeta"></span></button></div></div>
       <div class="field"><span>Account</span><div class="setgroup">
         <button type="button" class="setrow" data-signout style="color:var(--danger)"><span class="nm" style="color:inherit">Sign out</span></button></div></div>
       <div class="btns"><button class="btn primary" data-s="close">Done</button></div>
@@ -662,6 +667,7 @@ function settingsSheet(){
       old.forEach(t=>del('tasks', t.id)); armed = false; toast(`Cleared ${old.length} old tasks`); draw();
     }
     else if('signout' in b.dataset){ closeSheet(); sb.auth.signOut(); }
+    else if('checkupdate' in b.dataset){ checkForUpdate(true); }
     else if(b.dataset.s==='close'){ saveName(); closeSheet(); }
   };
 }
@@ -1032,8 +1038,38 @@ sb.auth.onAuthStateChange((event, session) => {
 });
 sb.auth.getSession().then(({data}) => { if(data.session) showApp(); else showLogin(); });
 
+let swReg = null;
+function renderUpdateBanner(show){
+  $('#updbar').innerHTML = show ? `<div class="updbar"><span>A new version of Daybook is ready.</span><button type="button" id="updApply">Refresh</button></div>` : '';
+  if(show){ const b = $('#updApply'); if(b) b.onclick = applyUpdate; }
+}
+function applyUpdate(){ if(swReg && swReg.waiting){ swReg.waiting.postMessage('skipWaiting'); } }
+async function checkForUpdate(manual){
+  if(!swReg) return;
+  try{ await swReg.update(); }catch(_){}
+  setTimeout(() => {
+    if(swReg.waiting){ renderUpdateBanner(true); if(manual) toast('Update found — tap Refresh above.'); }
+    else if(manual){ toast('You’re on the latest version.'); }
+  }, 800);
+}
 if('serviceWorker' in navigator){
-  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      swReg = reg;
+      if(reg.waiting && reg.active) renderUpdateBanner(true);
+      reg.addEventListener('updatefound', () => {
+        const nw = reg.installing; if(!nw) return;
+        nw.addEventListener('statechange', () => {
+          if(nw.state === 'installed' && navigator.serviceWorker.controller) renderUpdateBanner(true);
+        });
+      });
+    }).catch(()=>{});
+  });
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if(reloaded) return; reloaded = true; window.location.reload();
+  });
+  document.addEventListener('visibilitychange', () => { if(document.visibilityState==='visible') checkForUpdate(false); });
 }
 })();
 </script>
