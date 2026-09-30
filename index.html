@@ -330,6 +330,31 @@ button.side:hover .ic{background:var(--orange)}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .logincard .btn{color:#1a120c}}
 .logincard .err{color:var(--danger);font-size:13.5px;font-weight:700;min-height:1px}
 .logincard .btn[disabled]{opacity:.6}
+/* install helper */
+.instcard{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:9000;background:var(--peach);color:var(--peach-ink);border-radius:24px;padding:14px 14px 14px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 10px 30px rgba(60,30,10,.28);max-width:520px;margin:0 auto;box-sizing:border-box}
+.instcard .ico{width:48px;height:48px;border-radius:12px;flex:none}
+.instcard .t{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.instcard b{font-size:16px;font-weight:800}
+.instcard small{font-size:13px;font-weight:600;opacity:.8}
+.instcard .go{height:42px;padding:0 16px;border-radius:999px;background:var(--brown);color:#fff;font-weight:800;font-size:14px;border:0;flex:none}
+:root[data-theme="dark"] .instcard .go{color:#1a120c}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .instcard .go{color:#1a120c}}
+.instcard .x{width:30px;height:30px;border-radius:50%;background:transparent;color:inherit;opacity:.6;font-size:20px;line-height:1;border:0;flex:none}
+.instsheet{position:fixed;inset:0;z-index:9500;background:rgba(20,10,4,.55);display:flex;align-items:flex-end;justify-content:center}
+.instsheet .box{background:var(--surface);color:var(--ink);width:100%;max-width:520px;border-radius:28px 28px 0 0;padding:22px 20px calc(96px + env(safe-area-inset-bottom,0px));position:relative}
+.instsheet h3{margin:0 0 4px;font-size:22px;font-weight:800}
+.instsheet .sub{color:var(--ink-2);font-size:14px;font-weight:600;margin-bottom:14px}
+.instsheet ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.instsheet li{display:flex;align-items:center;gap:12px;background:var(--soft);border-radius:18px;padding:12px 14px;font-weight:700;font-size:16px}
+.instsheet li .n{width:30px;height:30px;border-radius:50%;background:var(--orange);color:#fff;display:grid;place-items:center;font-weight:800;flex:none}
+.instsheet li svg{width:24px;height:24px;flex:none;color:var(--orange)}
+.instsheet .close{position:absolute;top:14px;right:14px;width:36px;height:36px;border-radius:50%;background:var(--soft);color:var(--ink);border:0;font-size:20px}
+.instarrow{position:absolute;left:50%;bottom:calc(8px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);color:var(--orange);font-size:44px;line-height:1;animation:instb 1s ease-in-out infinite}
+.instarrow.top{bottom:auto;top:8px;right:16px;left:auto;transform:none;animation:instt 1s ease-in-out infinite}
+@keyframes instb{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,10px)}}
+@keyframes instt{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.instsheet .copy{margin-top:12px;width:100%;height:50px;border-radius:16px;background:var(--orange);color:#fff;font-weight:800;font-size:16px;border:0}
+.instsheet li .tx{flex:1;min-width:0}
 </style>
 </head>
 <body>
@@ -715,6 +740,7 @@ function settingsSheet(){
         <button type="button" class="setrow" data-pushtest><span class="nm">Send a test notification</span></button></div>
         <div class="setnote">On iPhone, open Daybook from its Home Screen icon first.</div></div>
       <div class="field"><span>App</span><div class="setgroup">
+        ${(!isStandalone() && (isIOS || (window.dbInstall&&window.dbInstall.can()))) ? `<button type="button" class="setrow" data-install><span class="nm">Install on Home Screen</span><span class="meta">${isIOS?'How':'Install'}</span></button>`:''}
         <button type="button" class="setrow" data-checkupdate><span class="nm">Check for updates</span><span class="meta" id="updCheckMeta"></span></button></div></div>
       <div class="field"><span>Account</span><div class="setgroup">
         <button type="button" class="setrow" data-signout style="color:var(--danger)"><span class="nm" style="color:inherit">Sign out</span></button></div></div>
@@ -1200,6 +1226,58 @@ if('serviceWorker' in navigator){
   });
   document.addEventListener('visibilitychange', () => { if(document.visibilityState==='visible') checkForUpdate(false); });
 }
+})();
+</script>
+<script>
+/* Daybook install helper: Add-to-Home-Screen guide (iPhone) and one-tap install (Android/desktop Chrome) */
+(function(){
+  var ua = navigator.userAgent, ls = function(){ try{ return window.localStorage; }catch(e){ return null; } };
+  var standalone = function(){ return (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true; };
+  var isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var isIPad = /iPad/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var inApp = /FBAN|FBAV|Instagram|Line\/|MicroMessenger|Snapchat|TikTok|Twitter|LinkedInApp|GSA\/|CriOS|FxiOS|EdgiOS|OPiOS/.test(ua) || (isIOS && !/Safari\//.test(ua));
+  var deferred = null;
+  window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); deferred = e; show(); });
+  window.addEventListener('appinstalled', function(){ deferred = null; hideAll(); });
+  function dismissed(){ var s = ls(); var t = s && +s.getItem('db-inst-x'); return t && Date.now() - t < 7*864e5; }
+  function hideAll(){ var a = document.querySelector('.instcard'), b = document.querySelector('.instsheet'); if(a) a.remove(); if(b) b.remove(); }
+  var SHARE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M8 7l4-4 4 4"/><path d="M6 11H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1"/></svg>';
+  var PLUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/></svg>';
+  function guide(){
+    hideAll();
+    var el = document.createElement('div'); el.className = 'instsheet';
+    var body;
+    if(inApp){
+      body = '<h3>Open in Safari first</h3><div class="sub">This link opened inside another app, which can’t install Daybook.</div><ol><li><span class="n">1</span>Copy the link below</li><li><span class="n">2</span>Open <b>Safari</b> and paste it</li><li><span class="n">3</span>Then tap Install again</li></ol><button class="copy" type="button">Copy link</button>';
+    } else {
+      body = '<h3>Install Daybook</h3><div class="sub">Two taps and it lives on your Home Screen.</div><ol><li><span class="n">1</span><span class="tx">Tap the <b>Share</b> button</span>' + SHARE + '</li><li><span class="n">2</span><span class="tx">Choose <b>Add to Home Screen</b></span>' + PLUS + '</li><li><span class="n">3</span><span class="tx">Tap <b>Add</b>, then open Daybook from the Home Screen</span></li></ol>';
+    }
+    el.innerHTML = '<div class="box">' + body + '<button class="close" type="button" aria-label="Close">×</button></div>' + (inApp ? '' : '<div class="instarrow' + (isIPad ? ' top' : '') + '">' + (isIPad ? '↑' : '↓') + '</div>');
+    el.addEventListener('click', function(e){
+      if(e.target === el || e.target.closest('.close')) el.remove();
+      var c = e.target.closest('.copy');
+      if(c){ var u = location.href.split('#')[0]; (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(function(){ c.textContent = 'Copied ✓'; }, function(){ c.textContent = u; }); }
+    });
+    document.body.appendChild(el);
+  }
+  function install(){
+    if(deferred){ var d = deferred; deferred = null; d.prompt(); d.userChoice.then(function(){ hideAll(); }); }
+    else if(isIOS) guide();
+  }
+  function show(){
+    if(standalone() || dismissed() || document.querySelector('.instcard')) return;
+    if(!isIOS && !deferred) return;
+    var el = document.createElement('div'); el.className = 'instcard';
+    el.innerHTML = '<img class="ico" src="icon-192.png" alt=""><div class="t"><b>Install Daybook</b><small>' + (isIOS ? 'Add it to your Home Screen' : 'One tap, opens like an app') + '</small></div><button class="go" type="button">' + (isIOS ? 'Show me how' : 'Install') + '</button><button class="x" type="button" aria-label="Not now">×</button>';
+    el.addEventListener('click', function(e){
+      if(e.target.closest('.x')){ var s = ls(); if(s) s.setItem('db-inst-x', String(Date.now())); el.remove(); }
+      else if(e.target.closest('.go')) install();
+    });
+    document.body.appendChild(el);
+  }
+  window.dbInstall = { open: install, can: function(){ return !standalone() && (isIOS || !!deferred); } };
+  document.addEventListener('click', function(e){ if(e.target.closest('[data-install]')) install(); });
+  if(!standalone()) setTimeout(show, 2500);
 })();
 </script>
 </body>
