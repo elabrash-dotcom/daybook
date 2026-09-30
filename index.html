@@ -19,6 +19,7 @@
 :root{
   --bg:#F3EDEA; --bg-2:#F6E3D6; --surface:#FFFFFF; --soft:#F7F2EF; --ink:#1F1A17; --ink-2:#7B716B; --ink-3:#B0A6A0;
   --line:#EAE1DC; --orange:#EF7B2D; --brown:#5A2D12; --peach:#F9D8BF; --peach-ink:#5A2D12; --danger:#E0473A;
+  --rem:#6A55E8; --rem-soft:#F0EDFF; --rem-ink:#FFFFFF;
   --shadow:0 1px 2px rgba(60,30,10,.04),0 8px 24px rgba(60,30,10,.06);
   --f:"Urbanist",ui-rounded,system-ui,-apple-system,"Segoe UI",sans-serif;
 }
@@ -36,6 +37,8 @@ html{min-height:100%;overflow-x:hidden;overscroll-behavior-x:none;touch-action:m
 body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);background:#33190A;z-index:60;pointer-events:none}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) body::before{background:var(--bg)}}
 :root[data-theme="dark"] body::before{background:var(--bg)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--rem:#A99BFF;--rem-soft:#231E33;--rem-ink:#15101F}}
+:root[data-theme="dark"]{--rem:#A99BFF;--rem-soft:#231E33;--rem-ink:#15101F}
 body{min-height:100%;max-width:100%;overflow-x:hidden;touch-action:manipulation;background:transparent;color:var(--ink);font:500 16px/1.4 var(--f);-webkit-tap-highlight-color:transparent}
 button,input,textarea{font:inherit;color:inherit}
 button{cursor:pointer;border:0;background:none;padding:0}
@@ -260,9 +263,30 @@ button.side:hover .ic{background:var(--orange)}
 .closex svg{width:18px;height:18px}
 .field{display:flex;flex-direction:column;gap:8px}
 .field > span{font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
-.field input[type=time]{border:2px solid transparent;background:var(--surface);color:var(--ink);border-radius:18px;padding:12px 16px;font-size:18px;font-weight:700;outline:none;min-width:150px;min-height:52px;box-sizing:border-box;font-family:inherit}
-.timerow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.bell{color:var(--orange);font-weight:700}
+.remtoggle{width:100%;display:flex;align-items:center;gap:12px;background:var(--surface);border-radius:18px;padding:10px 12px;min-height:60px;font-weight:700;font-size:17px;text-align:left;color:var(--ink);box-sizing:border-box}
+.remtoggle .ic{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:var(--soft);color:var(--ink-2);flex:none}
+.remtoggle .ic svg{width:20px;height:20px}
+.remtoggle .lbl{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.remtoggle .lbl small{font-size:13px;font-weight:600;color:var(--ink-2)}
+.remtoggle[aria-pressed="true"] .ic{background:var(--rem);color:var(--rem-ink)}
+.remtoggle[aria-pressed="true"] .lbl small{color:var(--rem)}
+.switch{width:52px;height:32px;border-radius:999px;background:var(--line);position:relative;flex:none;transition:background .2s}
+.switch i{position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .2s}
+.remtoggle[aria-pressed="true"] .switch{background:var(--rem)}
+.remtoggle[aria-pressed="true"] .switch i{transform:translateX(20px)}
+.remopts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.opt.rq[aria-pressed="true"]{background:var(--rem);color:var(--rem-ink)}
+.timepick{position:relative;overflow:hidden;cursor:pointer}
+.timepick input{position:absolute;inset:0;width:100%;height:100%;opacity:0;font-size:16px;cursor:pointer}
+.remhint{font-size:14px;font-weight:600;color:var(--ink-2);padding:8px 4px 0}
+.remhint.bad{color:var(--danger)}
+.item.rem .card{background:var(--rem-soft);box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--rem) 32%,transparent),var(--shadow)}
+.rempill{align-self:flex-start;display:inline-flex;align-items:center;gap:5px;margin-top:3px;padding:3px 10px 3px 7px;border-radius:999px;background:var(--rem);color:var(--rem-ink);font-size:13px;font-weight:800;white-space:nowrap}
+.rempill svg{width:14px;height:14px}
+.rempill.past{background:transparent;color:var(--rem);box-shadow:inset 0 0 0 1.5px var(--rem)}
+.chip.remchip{color:var(--rem)}
+.chip.remchip .av{background:var(--rem);color:var(--rem-ink)}
+.remwarn{width:100%;text-align:left;background:var(--rem-soft);color:var(--rem);border-radius:16px;padding:12px 14px;font-weight:700;font-size:15px}
 .field input[type=text],.field textarea{border:2px solid transparent;background:var(--surface);border-radius:18px;padding:14px 16px;font-size:18px;font-weight:600;outline:none;width:100%;box-sizing:border-box}
 .field textarea{font-weight:500;font-size:16px;min-height:74px;resize:vertical}
 .field input:focus,.field textarea:focus{border-color:var(--orange)}
@@ -475,6 +499,8 @@ function renderOverdue(){
 function renderChips(){
   const pc = (kind,id,name,color,ico) => `<button class="chip" style="--c:${color}" data-f="${kind}" data-id="${esc(id)}" aria-pressed="${(kind==='person'?filter.personId:filter.projectId)===id}"><span class="av">${ico}</span>${esc(name)}</button>`;
   let team = `<button class="chip" style="--c:#1F1A17" data-f="all" aria-pressed="${!filter.personId && !filter.projectId}"><span class="av">${I.all}</span>Everyone</button>`;
+  const nRem = tasks.filter(t=>!t.done && t.time && t.remindAt).length;
+  team = `<button class="chip remchip" data-reminders aria-label="Show reminders"><span class="av">${I.clock}</span>Reminders${nRem?' · '+nRem:''}</button>` + team;
   allPeople().forEach(p => team += pc('person',p.id,p.name,p.color,esc(initials(p.name))));
   team += `<button class="chip add" data-newperson aria-label="Add team member">+</button>`;
   let proj = allProjects().length ? '' : '';
@@ -500,7 +526,6 @@ function item(t, ctx){
   if(!filter.personId) bits.push(esc(namesOf(ids).join(', ')));
   else if(ids.length>1) bits.push('with ' + esc(namesOf(ids.filter(i=>i!==filter.personId)).join(', ')));
   if(pr && filter.projectId!==pr.id) bits.push(esc(pr.name));
-  if(!t.done && t.time) bits.push(`<span class="bell">⏰ ${esc(hhmm(t.time))}</span>`);
   if(t.note) bits.push('Note');
   if(!t.done && t.priority) bits.push(`Priority ${t.priority}`);
   const added = t.createdAt ? 'Added ' + (dateOfMs(t.createdAt)===t0 ? '' : dayLabel(dateOfMs(t.createdAt)) + ', ') + timeOf(t.createdAt) : '';
@@ -508,9 +533,11 @@ function item(t, ctx){
   const side = t.done
     ? `<div class="side"><span class="ic">${I.check}</span>${esc(timeOf(t.doneAt))}</div>`
     : `<button class="side" data-act="push" aria-label="Push to later"><span class="ic">${I.arrow}</span>${(!t.date||t.date<=t0)?'Tmrw':'+1 day'}</button>`;
-  return `<div class="item${t.done?' done':''}" data-id="${esc(t.id)}">
+  const isRem = !t.done && t.time && t.remindAt;
+  const remPill = isRem ? `<span class="rempill${t.remindAt<=Date.now()?' past':''}">${I.clock}${esc(hhmm(t.time))}${(ctx==='rem' || t.date!==sel) && t.date ? ' · ' + esc(dayLabel(t.date)) : ''}</span>` : '';
+  return `<div class="item${t.done?' done':''}${isRem?' rem':''}" data-id="${esc(t.id)}">
     <button class="tick" data-act="toggle" aria-label="${t.done?'Mark not done':'Mark done'}">${I.check}</button>
-    <div class="card" style="--c:${color}">${tileTag}<button class="main" data-act="open"><span class="tx"><span class="tt">${esc(t.title)}</span><span class="ts">${bits.join(' · ')}</span>${added ? `<span class="ta">${esc(added)}</span>` : ''}</span></button>${side}</div>
+    <div class="card" style="--c:${color}">${tileTag}<button class="main" data-act="open"><span class="tx"><span class="tt">${esc(t.title)}</span>${remPill}<span class="ts">${bits.join(' · ')}</span>${added ? `<span class="ta">${esc(added)}</span>` : ''}</span></button>${side}</div>
   </div>`;
 }
 function listHead(){
@@ -546,6 +573,39 @@ function renderDay(){
     }
   }
   return h + `</section>`;
+}
+const REM_QUICK = ['09:00','12:00','15:00','18:00'];
+function defaultRem(date){
+  if(date && date > today()) return { date, time:'09:00' };
+  const d = new Date(Date.now() + 60*60e3); d.setMinutes(0,0,0);
+  return { date: dateOfMs(d.getTime()), time: String(d.getHours()).padStart(2,'0') + ':00' };
+}
+function remField(s){
+  const on = !!s.time;
+  const notifOff = typeof Notification !== 'undefined' && Notification.permission !== 'granted';
+  const sub = on ? `${hhmm(s.time)} · ${s.date ? dayLabel(s.date) : 'Today'}` : 'Off · tap to set a time';
+  let h = `<button type="button" class="remtoggle" data-remtog aria-pressed="${on}"><span class="ic">${I.clock}</span><span class="lbl">Remind me<small>${esc(sub)}</small></span><span class="switch"><i></i></span></button>`;
+  if(on){
+    const custom = !REM_QUICK.includes(s.time);
+    h += `<div class="remopts">${REM_QUICK.map(v=>`<button type="button" class="opt rq" data-tq="${v}" aria-pressed="${s.time===v}">${esc(hhmm(v))}</button>`).join('')}<button type="button" class="opt rq" data-tq="+60" aria-pressed="false">In 1 hour</button><label class="opt rq timepick" aria-pressed="${custom}">${custom ? esc(hhmm(s.time)) : 'Other time…'}<input type="time" id="sTime" value="${esc(s.time)}" aria-label="Pick a reminder time"></label></div>`;
+    const at = s.date ? new Date(s.date + 'T' + s.time + ':00').getTime() : 0;
+    if(notifOff) h += `<div class="remhint bad">Notifications are off on this device. Turn them on in Settings.</div>`;
+    else if(at && at < Date.now()) h += `<div class="remhint bad">That time has already passed. Pick a later time or day.</div>`;
+    else h += `<div class="remhint">You’ll get a notification then.</div>`;
+  }
+  return h;
+}
+function renderReminders(){
+  const now = Date.now();
+  const list = tasks.filter(t=>!t.done && t.time && t.remindAt).sort((a,b)=>a.remindAt-b.remindAt);
+  let h = `<button class="back" data-back>${I.left}Back</button><div class="head"><h3 style="font-size:28px">Reminders</h3><span class="ts" style="margin-left:auto">${list.length} set</span></div>`;
+  if(typeof Notification !== 'undefined' && Notification.permission !== 'granted') h += `<button class="remwarn" data-settings>Notifications are off on this device · Turn on</button>`;
+  if(!list.length) return h + `<div class="empty"><b>No reminders yet</b>Open a task and switch on “Remind me”, or say “remind me at 3pm to…”.</div>`;
+  const past = list.filter(t=>t.remindAt<=now), next = list.filter(t=>t.remindAt>now);
+  const days = [...new Set(next.map(t=>t.date))];
+  days.forEach(d => { const l = next.filter(t=>t.date===d); h += `<div class="grouphead">${esc(dayLabel(d))} · ${l.length}</div><div class="list">${l.map(t=>item(t,'rem')).join('')}</div>`; });
+  if(past.length) h += `<div class="grouphead">Already reminded · ${past.length}</div><div class="list">${past.map(t=>item(t,'rem')).join('')}</div>`;
+  return h;
 }
 function renderHistory(){
   const done = tasks.filter(t=>t.done && t.doneAt && passes(t)).sort((a,b)=>b.doneAt-a.doneAt);
@@ -597,11 +657,12 @@ function renderOverview(){
 }
 function render(){
   $('#warn').innerHTML = synced===false ? `<div class="warn">Connection lost — trying to reconnect. Changes may not save until it's back.</div>` : '';
-  const hist = mode==='history', ov = mode==='overview';
-  $('#top').style.display = (hist||ov) ? 'none' : 'flex';
-  $('#qa').style.display = (hist||ov) ? 'none' : 'flex';
+  const hist = mode==='history', ov = mode==='overview', rv = mode==='reminders';
+  $('#top').style.display = (hist||ov||rv) ? 'none' : 'flex';
+  $('#qa').style.display = (hist||ov||rv) ? 'none' : 'flex';
   if(hist){ $('#rest').innerHTML = renderHistory(); return; }
   if(ov){ $('#rest').innerHTML = renderOverview(); return; }
+  if(rv){ $('#rest').innerHTML = renderReminders(); return; }
   $('#top').innerHTML = `<header class="top"><div><h1>${greeting()}, ${esc(myName())}</h1><div class="sub">${esc(longDate(today()))}</div></div>
     <div class="hbtns"><button class="hb" data-overview aria-label="Overview">${I.chart}</button><button class="hb" data-theme-quick aria-label="Switch light or dark">${isDark()?I.sun:I.moon}</button><button class="me" data-settings aria-label="Settings">${esc(initials(myName()))}<span class="badge">${I.gear}</span></button></div></header>` + renderWeek();
   renderQA();
@@ -817,7 +878,7 @@ function taskSheet(existing){
       <div class="grab"></div><div class="sheethead"><h4>${isNew?'New task':'Edit task'}</h4><button type="button" class="closex" data-s="cancel" aria-label="Close">${I.x}</button></div>
       <label class="field"><span>Task</span><input type="text" id="sTitle" value="${esc(s.title)}" placeholder="What needs doing?" enterkeyhint="done"></label>
       <div class="field"><span>When</span><div class="wrap">${whenOpts(s)}</div>${s.calOpen?calHTML(s):''}</div>
-      <div class="field"><span>Remind me at · optional</span><div class="timerow"><input type="time" id="sTime" value="${esc(s.time||'')}">${s.time?'<button type="button" class="opt" data-notime>No reminder</button>':''}</div></div>
+      <div class="field"><span>Reminder</span>${remField(s)}</div>
       <div class="field"><span>Who · tap to add more</span><div class="wrap">${whoOpts(s)}</div></div>
       ${projOpts(s)}
       <div class="field"><span>Priority · rank it 1, 2, 3…</span>${priChips(s)}</div>
@@ -825,10 +886,12 @@ function taskSheet(existing){
       ${isNew?'':`<div class="stamp">Added ${esc(dayLabel(dateOfMs(s.createdAt||Date.now())))} at ${esc(timeOf(s.createdAt||Date.now()))}${s.done&&s.doneAt?` · Finished ${esc(dayLabel(dateOfMs(s.doneAt)))} at ${esc(timeOf(s.doneAt))}`:''}</div>`}
       <div class="btns">${isNew?`<button class="btn" data-s="cancel">Cancel</button><button class="btn primary" data-s="save">Add task</button>`:`<button class="btn danger" data-s="del">Delete</button><button class="btn" data-s="done">${s.done?'Reopen':'Mark done'}</button><button class="btn primary" data-s="save">Save</button>`}</div>
     </div></div>`;
+    const tp = $('#sTime');
+    if(tp) tp.addEventListener('change', () => { if(tp.value){ grab(); s.time = tp.value.slice(0,5); if(!s.date) s.date = today(); draw(); } });
     const ti = $('#sTitle');
     ti.addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); root.querySelector('[data-s="save"]').click(); } });
   };
-  const grab = () => { s.title = $('#sTitle').value; s.note = $('#sNote').value; const tm = $('#sTime'); if(tm) s.time = tm.value ? tm.value.slice(0,5) : null; };
+  const grab = () => { s.title = $('#sTitle').value; s.note = $('#sNote').value; };
   draw();
   if(isNew) setTimeout(()=>$('#sTitle')?.focus(), 60);
   root.onchange = null;
@@ -839,7 +902,8 @@ function taskSheet(existing){
     else if('p' in b.dataset){ grab(); togglePerson(s, b.dataset.p); draw(); }
     else if('pr' in b.dataset){ grab(); s.projectId = b.dataset.pr || null; draw(); }
     else if('pri' in b.dataset){ grab(); s.priority = b.dataset.pri ? +b.dataset.pri : null; draw(); }
-    else if('notime' in b.dataset){ grab(); s.time = null; draw(); }
+    else if('remtog' in b.dataset){ grab(); if(s.time) s.time = null; else { if(!s.date || s.date < today()) s.date = today(); const dr = defaultRem(s.date); s.date = dr.date; s.time = dr.time; } draw(); }
+    else if(b.dataset.tq){ grab(); if(b.dataset.tq==='+60'){ const d = new Date(Date.now()+60*60e3); d.setMinutes(Math.ceil(d.getMinutes()/5)*5,0,0); s.date = dateOfMs(d.getTime()); s.time = String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); } else { if(!s.date || s.date < today()) s.date = today(); s.time = b.dataset.tq; } draw(); }
     else if(b.dataset.s==='cancel') closeSheet();
     else if(b.dataset.s==='save'){
       grab(); s.title = s.title.trim();
@@ -939,6 +1003,7 @@ $('#app').addEventListener('click', e => {
   else if('themeQuick' in b.dataset) setTheme(isDark()?'light':'dark');
   else if('history' in b.dataset){ mode='history'; histLimit=60; render(); window.scrollTo({top:0}); }
   else if('overview' in b.dataset){ mode='overview'; render(); window.scrollTo({top:0}); }
+  else if('reminders' in b.dataset){ mode='reminders'; render(); window.scrollTo({top:0}); }
   else if('back' in b.dataset){ mode='day'; render(); window.scrollTo({top:0}); }
   else if('morehist' in b.dataset){ histLimit += 60; render(); }
   else if('moveOverdue' in b.dataset) moveOverdue();
