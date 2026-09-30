@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Daybook</title>
 <meta name="description" content="Idris's shared to-do app — team, projects, and personal tasks, synced everywhere.">
 <link rel="manifest" href="manifest.json">
@@ -32,11 +32,11 @@
   --bg:#15110E; --bg-2:#241710; --surface:#211B17; --soft:#2A231E; --ink:#F6EFEA; --ink-2:#B3A69D; --ink-3:#6F645D;
   --line:#342B25; --orange:#F48A40; --brown:#F48A40; --peach:#3B2517; --peach-ink:#FFD9BD; --danger:#FF6B5E;
   --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);}
-html{min-height:100%;background-color:var(--bg-2);background-image:linear-gradient(180deg,var(--bg) 55%,var(--bg-2));background-attachment:fixed}
+html{min-height:100%;overflow-x:hidden;overscroll-behavior-x:none;touch-action:manipulation;background-color:var(--bg-2);background-image:linear-gradient(180deg,var(--bg) 55%,var(--bg-2));background-attachment:fixed}
 body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);background:#33190A;z-index:60;pointer-events:none}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) body::before{background:var(--bg)}}
 :root[data-theme="dark"] body::before{background:var(--bg)}
-body{min-height:100%;background:transparent;color:var(--ink);font:500 16px/1.4 var(--f);-webkit-tap-highlight-color:transparent}
+body{min-height:100%;max-width:100%;overflow-x:hidden;touch-action:manipulation;background:transparent;color:var(--ink);font:500 16px/1.4 var(--f);-webkit-tap-highlight-color:transparent}
 button,input,textarea{font:inherit;color:inherit}
 button{cursor:pointer;border:0;background:none;padding:0}
 :focus-visible{outline:3px solid var(--orange);outline-offset:2px;border-radius:12px}
@@ -941,6 +941,7 @@ document.addEventListener('keydown', e => {
   }
 });
 
+['gesturestart','gesturechange','gestureend'].forEach(ev => document.addEventListener(ev, e => e.preventDefault()));
 /* ---------- boot ---------- */
 sel = today();
 syncQA();
