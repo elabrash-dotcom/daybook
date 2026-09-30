@@ -492,6 +492,7 @@ function item(t, ctx){
   if(pr && filter.projectId!==pr.id) bits.push(esc(pr.name));
   if(t.note) bits.push('Note');
   if(!t.done && t.priority) bits.push(`Priority ${t.priority}`);
+  if(t.createdAt){ const cd = dateOfMs(t.createdAt); bits.push('Added ' + (cd===t0 ? '' : esc(dayLabel(cd)) + ', ') + esc(timeOf(t.createdAt))); }
   if(!bits.length) bits.push(t.done ? 'Finished' : 'To do');
   const side = t.done
     ? `<div class="side"><span class="ic">${I.check}</span>${esc(timeOf(t.doneAt))}</div>`
