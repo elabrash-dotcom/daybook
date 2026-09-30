@@ -260,6 +260,9 @@ button.side:hover .ic{background:var(--orange)}
 .closex svg{width:18px;height:18px}
 .field{display:flex;flex-direction:column;gap:8px}
 .field > span{font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.field input[type=time]{border:2px solid transparent;background:var(--surface);color:var(--ink);border-radius:18px;padding:12px 16px;font-size:18px;font-weight:700;outline:none;min-width:150px;min-height:52px;box-sizing:border-box;font-family:inherit}
+.timerow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.bell{color:var(--orange);font-weight:700}
 .field input[type=text],.field textarea{border:2px solid transparent;background:var(--surface);border-radius:18px;padding:14px 16px;font-size:18px;font-weight:600;outline:none;width:100%;box-sizing:border-box}
 .field textarea{font-weight:500;font-size:16px;min-height:74px;resize:vertical}
 .field input:focus,.field textarea:focus{border-color:var(--orange)}
@@ -383,6 +386,7 @@ function dayLabel(s){
 }
 const longDate = s => parse(s).toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 const timeOf = ms => new Date(ms).toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit'});
+const hhmm = s => { if(!s) return ''; const [h,m] = s.split(':').map(Number); return new Date(2000,0,1,h,m).toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit'}); };
 const dateOfMs = ms => ymd(new Date(ms));
 const ME_DEFAULT = {id:'me', name:'Me', color:'#EF7B2D', order:0, isMe:true};
 const allPeople = () => { const p = [...people].sort((a,b)=>(b.isMe?1:0)-(a.isMe?1:0) || (a.order||0)-(b.order||0) || a.name.localeCompare(b.name)); return p.some(x=>x.id==='me') ? p : [ME_DEFAULT, ...p]; };
@@ -496,6 +500,7 @@ function item(t, ctx){
   if(!filter.personId) bits.push(esc(namesOf(ids).join(', ')));
   else if(ids.length>1) bits.push('with ' + esc(namesOf(ids.filter(i=>i!==filter.personId)).join(', ')));
   if(pr && filter.projectId!==pr.id) bits.push(esc(pr.name));
+  if(!t.done && t.time) bits.push(`<span class="bell">⏰ ${esc(hhmm(t.time))}</span>`);
   if(t.note) bits.push('Note');
   if(!t.done && t.priority) bits.push(`Priority ${t.priority}`);
   const added = t.createdAt ? 'Added ' + (dateOfMs(t.createdAt)===t0 ? '' : dayLabel(dateOfMs(t.createdAt)) + ', ') + timeOf(t.createdAt) : '';
@@ -646,6 +651,10 @@ function settingsSheet(){
       <div class="field"><span>History</span><div class="setgroup">
         <div class="setrow"><span class="nm">Finished tasks</span><span class="meta">${tasks.filter(t=>t.done).length} · ${tasks.length} total</span></div>
         <button type="button" class="setrow" data-clearold ${old?'':'disabled'} style="${old?'color:var(--danger)':'color:var(--ink-3)'}"><span class="nm" style="color:inherit">${armed?'Tap again to clear':'Clear finished tasks older than 90 days'}</span><span class="meta">${old}</span></button></div></div>
+      <div class="field"><span>Notifications</span><div class="setgroup">
+        <button type="button" class="setrow" data-pushon><span class="nm">Turn on reminders on this device</span><span class="meta" id="pushMeta"></span></button>
+        <button type="button" class="setrow" data-pushtest><span class="nm">Send a test notification</span></button></div>
+        <div class="setnote">On iPhone, open Daybook from its Home Screen icon first.</div></div>
       <div class="field"><span>App</span><div class="setgroup">
         <button type="button" class="setrow" data-checkupdate><span class="nm">Check for updates</span><span class="meta" id="updCheckMeta"></span></button></div></div>
       <div class="field"><span>Account</span><div class="setgroup">
@@ -658,7 +667,7 @@ function settingsSheet(){
     const v = el.value.trim();
     if(v !== (settings.name||'')){ settings = {...settings, name:v}; render(); if(db) db.collection('settings').doc('app').set({...settings}).catch(()=>toast('Couldn’t save your name.')); }
   };
-  draw();
+  draw(); pushStatus();
   root.onchange = null;
   root.onclick = e => {
     if(e.target.matches('[data-scrim]')){ saveName(); closeSheet(); return; }
@@ -675,6 +684,8 @@ function settingsSheet(){
     }
     else if('signout' in b.dataset){ closeSheet(); sb.auth.signOut(); }
     else if('checkupdate' in b.dataset){ checkForUpdate(true); }
+    else if('pushon' in b.dataset){ enablePush().then(()=>pushStatus()); }
+    else if('pushtest' in b.dataset){ testPush(); }
     else if(b.dataset.s==='close'){ saveName(); closeSheet(); }
   };
 }
@@ -806,6 +817,7 @@ function taskSheet(existing){
       <div class="grab"></div><div class="sheethead"><h4>${isNew?'New task':'Edit task'}</h4><button type="button" class="closex" data-s="cancel" aria-label="Close">${I.x}</button></div>
       <label class="field"><span>Task</span><input type="text" id="sTitle" value="${esc(s.title)}" placeholder="What needs doing?" enterkeyhint="done"></label>
       <div class="field"><span>When</span><div class="wrap">${whenOpts(s)}</div>${s.calOpen?calHTML(s):''}</div>
+      <div class="field"><span>Remind me at · optional</span><div class="timerow"><input type="time" id="sTime" value="${esc(s.time||'')}">${s.time?'<button type="button" class="opt" data-notime>No reminder</button>':''}</div></div>
       <div class="field"><span>Who · tap to add more</span><div class="wrap">${whoOpts(s)}</div></div>
       ${projOpts(s)}
       <div class="field"><span>Priority · rank it 1, 2, 3…</span>${priChips(s)}</div>
@@ -816,7 +828,7 @@ function taskSheet(existing){
     const ti = $('#sTitle');
     ti.addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); root.querySelector('[data-s="save"]').click(); } });
   };
-  const grab = () => { s.title = $('#sTitle').value; s.note = $('#sNote').value; };
+  const grab = () => { s.title = $('#sTitle').value; s.note = $('#sNote').value; const tm = $('#sTime'); if(tm) s.time = tm.value ? tm.value.slice(0,5) : null; };
   draw();
   if(isNew) setTimeout(()=>$('#sTitle')?.focus(), 60);
   root.onchange = null;
@@ -827,11 +839,14 @@ function taskSheet(existing){
     else if('p' in b.dataset){ grab(); togglePerson(s, b.dataset.p); draw(); }
     else if('pr' in b.dataset){ grab(); s.projectId = b.dataset.pr || null; draw(); }
     else if('pri' in b.dataset){ grab(); s.priority = b.dataset.pri ? +b.dataset.pri : null; draw(); }
+    else if('notime' in b.dataset){ grab(); s.time = null; draw(); }
     else if(b.dataset.s==='cancel') closeSheet();
     else if(b.dataset.s==='save'){
       grab(); s.title = s.title.trim();
       if(!s.title){ $('#sTitle').focus(); return; }
+      if(s.time && !s.date) s.date = today();
       saveTask(s); closeSheet();
+      if(s.time && !s.done && typeof Notification!=='undefined' && Notification.permission!=='granted') setTimeout(()=>toast('Turn on notifications to get reminders', 'Settings', () => settingsSheet()), 400);
       if(isNew){
         const shownHere = passes(s) && (s.date===sel || (sel===today() && s.date && s.date<sel));
         toast(shownHere ? 'Task added' : `Added · ${namesOf(s.personIds).join(', ')} · ${dayLabel(s.date)}`, 'Add another', () => taskSheet());
@@ -956,14 +971,58 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
 });
 
+function remindCols(d){
+  const at = (d.time && d.date && /^\d{2}:\d{2}$/.test(d.time)) ? new Date(d.date + 'T' + d.time + ':00').getTime() : null;
+  return { time: at ? d.time : null, remind_at: at, reminded_at: (at && at === d.remindAt) ? (d.remindedAt || null) : null };
+}
+const PUSH_FN = SUPABASE_URL + '/functions/v1/push';
+const b64uToU8 = s => Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/') + '==='.slice((s.length+3)%4)), c => c.charCodeAt(0));
+const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && typeof Notification !== 'undefined';
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+async function pushStatus(){
+  const el = $('#pushMeta'); if(!el) return;
+  if(!pushSupported()){ el.textContent = isIOS && !isStandalone() ? 'Open from Home Screen' : 'Not supported here'; return; }
+  if(Notification.permission === 'denied'){ el.textContent = 'Blocked'; return; }
+  try { const reg = await navigator.serviceWorker.ready; const sub = await reg.pushManager.getSubscription(); el.textContent = sub && Notification.permission==='granted' ? 'On ✓' : 'Off'; } catch(e){ el.textContent = 'Off'; }
+}
+async function enablePush(){
+  if(!pushSupported()){ toast(isIOS && !isStandalone() ? 'Add Daybook to your Home Screen, open it from there, then try again.' : 'This browser can’t show notifications.'); return; }
+  try {
+    const perm = await Notification.requestPermission();
+    if(perm !== 'granted'){ toast('Notifications are blocked. Allow them in Settings → Notifications → Daybook.'); return; }
+    const reg = await navigator.serviceWorker.ready;
+    const { publicKey } = await fetch(PUSH_FN).then(r => r.json());
+    let sub = await reg.pushManager.getSubscription();
+    if(sub){
+      const cur = sub.options && sub.options.applicationServerKey ? btoa(String.fromCharCode(...new Uint8Array(sub.options.applicationServerKey))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'') : '';
+      if(cur && cur !== publicKey){ await sub.unsubscribe(); sub = null; }
+    }
+    if(!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uToU8(publicKey) });
+    const j = sub.toJSON();
+    const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(j.endpoint));
+    const id = Array.from(new Uint8Array(h)).map(b => b.toString(16).padStart(2,'0')).join('').slice(0,32);
+    const device = isIOS ? 'iPhone' : /Mac/.test(navigator.userAgent) ? 'Mac' : 'Other';
+    const { error } = await sb.from('push_subs').upsert({ id, endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, tz: Intl.DateTimeFormat().resolvedOptions().timeZone, device, created_at: Date.now(), fails: 0 });
+    if(error) throw error;
+    toast('Reminders are on for this device');
+  } catch(e){ console.error(e); toast('Couldn’t turn on notifications: ' + (e && e.message ? e.message : e)); }
+}
+async function testPush(){
+  try {
+    const { data } = await sb.auth.getSession();
+    const r = await fetch(PUSH_FN, { method:'POST', headers:{ 'content-type':'application/json', authorization:'Bearer ' + (data.session ? data.session.access_token : '') }, body: JSON.stringify({ action:'test' }) }).then(r => r.json());
+    toast(r.ok ? `Test sent to ${r.ok} device${r.ok>1?'s':''}` : (r.error || 'No devices have notifications on yet'));
+  } catch(e){ toast('Test failed'); }
+}
 function makeDb(sb){
   const OUT = {
-    tasks: r => ({id:r.id, title:r.title, note:r.note||'', personId:r.person_id, personIds:r.person_ids||[], projectId:r.project_id, priority:r.priority, date:r.date, done:!!r.done, doneAt:r.done_at, createdAt:r.created_at}),
+    tasks: r => ({id:r.id, title:r.title, note:r.note||'', personId:r.person_id, personIds:r.person_ids||[], projectId:r.project_id, priority:r.priority, date:r.date, done:!!r.done, doneAt:r.done_at, createdAt:r.created_at, time:r.time||null, remindAt:r.remind_at||null, remindedAt:r.reminded_at||null}),
     people: r => ({id:r.id, name:r.name, color:r.color, order:r.order||0, isMe:!!r.is_me}),
     projects: r => ({id:r.id, name:r.name, color:r.color, order:r.order||0})
   };
   const IN = {
-    tasks: d => ({title:d.title, note:d.note||'', person_id:d.personId||null, person_ids:d.personIds||[], project_id:d.projectId||null, priority:d.priority||null, date:d.date||null, done:!!d.done, done_at:d.doneAt||null, created_at:d.createdAt||Date.now()}),
+    tasks: d => ({title:d.title, note:d.note||'', person_id:d.personId||null, person_ids:d.personIds||[], project_id:d.projectId||null, priority:d.priority||null, date:d.date||null, done:!!d.done, done_at:d.doneAt||null, created_at:d.createdAt||Date.now(), ...remindCols(d)}),
     people: d => ({name:d.name, color:d.color, order:d.order||0, is_me:!!d.isMe}),
     projects: d => ({name:d.name, color:d.color, order:d.order||0}),
     settings: d => ({name:d.name||null})
