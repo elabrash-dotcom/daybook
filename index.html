@@ -32,12 +32,16 @@
   --bg:#15110E; --bg-2:#241710; --surface:#211B17; --soft:#2A231E; --ink:#F6EFEA; --ink-2:#B3A69D; --ink-3:#6F645D;
   --line:#342B25; --orange:#F48A40; --brown:#F48A40; --peach:#3B2517; --peach-ink:#FFD9BD; --danger:#FF6B5E;
   --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);}
-html,body{min-height:100%}
-body{background:linear-gradient(180deg,var(--bg) 55%,var(--bg-2));background-attachment:fixed;color:var(--ink);font:500 16px/1.4 var(--f);-webkit-tap-highlight-color:transparent}
+html{min-height:100%;background-color:var(--bg-2);background-image:linear-gradient(180deg,var(--bg) 55%,var(--bg-2));background-attachment:fixed}
+body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);background:#33190A;z-index:60;pointer-events:none}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) body::before{background:var(--bg)}}
+:root[data-theme="dark"] body::before{background:var(--bg)}
+body{min-height:100%;background:transparent;color:var(--ink);font:500 16px/1.4 var(--f);-webkit-tap-highlight-color:transparent}
 button,input,textarea{font:inherit;color:inherit}
 button{cursor:pointer;border:0;background:none;padding:0}
 :focus-visible{outline:3px solid var(--orange);outline-offset:2px;border-radius:12px}
-.app{max-width:640px;margin:0 auto;padding-inline:20px;padding-block:22px;display:flex;flex-direction:column;gap:22px}
+.app{max-width:640px;margin:0 auto;padding-inline:20px;padding-top:calc(22px + env(safe-area-inset-top,0px));padding-bottom:calc(22px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:22px}
+#warn:empty,#updbar:empty{display:none}
 
 /* header */
 .top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
@@ -154,6 +158,7 @@ button.tile:active{background:color-mix(in srgb,var(--c) 34%,var(--surface))}
 .tt{font-size:17px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}
 .ts{font-size:14px;color:var(--ink-2);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ts .red{color:var(--danger);font-weight:700}
+.ta{font-size:13px;color:var(--ink-2);opacity:.8;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .side{flex:none;align-self:stretch;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:64px;border-left:1.5px solid var(--line);margin-block:14px;color:var(--ink-2);font-size:13px;font-weight:600;border-radius:0 22px 22px 0}
 button.side:hover{color:var(--orange)}
 .side .ic{width:22px;height:22px;border-radius:50%;background:var(--ink-2);color:var(--surface);display:grid;place-items:center}
@@ -242,14 +247,15 @@ button.side:hover .ic{background:var(--orange)}
 .prog{font-size:13px;font-weight:800;padding:4px 10px;border-radius:999px;background:var(--surface);color:var(--ink-2)}
 
 /* sheet */
-.scrim{position:fixed;inset:0;z-index:40;background:rgba(30,18,10,.4);display:flex;align-items:flex-end;justify-content:center}
-.sheet{width:100%;max-width:560px;max-height:92vh;overflow-y:auto;background:var(--bg);border-radius:30px 30px 0 0;padding:14px 20px calc(20px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:16px;animation:up .22s ease-out}
+.scrim{position:fixed;inset:0;z-index:40;background:rgba(30,18,10,.4);display:flex;align-items:flex-end;justify-content:center;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px)}
+.sheet{width:100%;box-sizing:border-box;max-width:560px;max-height:calc(100vh - env(safe-area-inset-top,0px) - 8px);max-height:calc(100dvh - env(safe-area-inset-top,0px) - 8px);overflow-y:auto;overscroll-behavior:contain;background:var(--bg);border-radius:30px 30px 0 0;padding:14px 20px calc(20px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:16px;animation:up .22s ease-out}
+@media (max-width:699px){.sheet{box-shadow:0 120px 0 0 var(--bg)}}
 @media (min-width:700px){.scrim{align-items:center}.sheet{border-radius:30px}}
 @keyframes up{from{transform:translateY(30px);opacity:0}}
 .grab{width:44px;height:5px;border-radius:9px;background:var(--line);align-self:center}
 .sheethead{display:flex;align-items:center;gap:10px}
 .sheet h4{margin:0;font-size:24px;font-weight:800;flex:1;min-width:0}
-.closex{flex:none;width:38px;height:38px;border-radius:50%;background:var(--surface);color:var(--ink-2);display:grid;place-items:center;box-shadow:var(--shadow)}
+.closex{flex:none;width:44px;height:44px;border-radius:50%;background:var(--surface);color:var(--ink-2);display:grid;place-items:center;box-shadow:var(--shadow)}
 .closex:hover{color:var(--ink);background:var(--soft)}
 .closex svg{width:18px;height:18px}
 .field{display:flex;flex-direction:column;gap:8px}
@@ -492,14 +498,14 @@ function item(t, ctx){
   if(pr && filter.projectId!==pr.id) bits.push(esc(pr.name));
   if(t.note) bits.push('Note');
   if(!t.done && t.priority) bits.push(`Priority ${t.priority}`);
-  if(t.createdAt){ const cd = dateOfMs(t.createdAt); bits.push('Added ' + (cd===t0 ? '' : esc(dayLabel(cd)) + ', ') + esc(timeOf(t.createdAt))); }
+  const added = t.createdAt ? 'Added ' + (dateOfMs(t.createdAt)===t0 ? '' : dayLabel(dateOfMs(t.createdAt)) + ', ') + timeOf(t.createdAt) : '';
   if(!bits.length) bits.push(t.done ? 'Finished' : 'To do');
   const side = t.done
     ? `<div class="side"><span class="ic">${I.check}</span>${esc(timeOf(t.doneAt))}</div>`
     : `<button class="side" data-act="push" aria-label="Push to later"><span class="ic">${I.arrow}</span>${(!t.date||t.date<=t0)?'Tmrw':'+1 day'}</button>`;
   return `<div class="item${t.done?' done':''}" data-id="${esc(t.id)}">
     <button class="tick" data-act="toggle" aria-label="${t.done?'Mark not done':'Mark done'}">${I.check}</button>
-    <div class="card" style="--c:${color}">${tileTag}<button class="main" data-act="open"><span class="tx"><span class="tt">${esc(t.title)}</span><span class="ts">${bits.join(' · ')}</span></span></button>${side}</div>
+    <div class="card" style="--c:${color}">${tileTag}<button class="main" data-act="open"><span class="tx"><span class="tt">${esc(t.title)}</span><span class="ts">${bits.join(' · ')}</span>${added ? `<span class="ta">${esc(added)}</span>` : ''}</span></button>${side}</div>
   </div>`;
 }
 function listHead(){
