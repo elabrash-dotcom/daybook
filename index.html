@@ -19,7 +19,7 @@
 :root{
   --bg:#F3EDEA; --bg-2:#F6E3D6; --surface:#FFFFFF; --soft:#F7F2EF; --ink:#1F1A17; --ink-2:#7B716B; --ink-3:#B0A6A0;
   --line:#EAE1DC; --orange:#EF7B2D; --brown:#5A2D12; --peach:#F9D8BF; --peach-ink:#5A2D12; --danger:#E0473A;
-  --rem:#6A55E8; --rem-soft:#F0EDFF; --rem-ink:#FFFFFF;
+  --rem:#D2304F; --rem-soft:#FDE9ED; --rem-ink:#FFFFFF;
   --shadow:0 1px 2px rgba(60,30,10,.04),0 8px 24px rgba(60,30,10,.06);
   --f:"Urbanist",ui-rounded,system-ui,-apple-system,"Segoe UI",sans-serif;
 }
@@ -37,8 +37,8 @@ html{min-height:100%;overflow-x:hidden;overscroll-behavior-x:none;touch-action:m
 body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);background:#33190A;z-index:60;pointer-events:none}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) body::before{background:var(--bg)}}
 :root[data-theme="dark"] body::before{background:var(--bg)}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--rem:#A99BFF;--rem-soft:#231E33;--rem-ink:#15101F}}
-:root[data-theme="dark"]{--rem:#A99BFF;--rem-soft:#231E33;--rem-ink:#15101F}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--rem:#FF7A93;--rem-soft:#34171E;--rem-ink:#2A0C13}}
+:root[data-theme="dark"]{--rem:#FF7A93;--rem-soft:#34171E;--rem-ink:#2A0C13}
 body{min-height:100%;max-width:100%;overflow-x:hidden;touch-action:manipulation;background:transparent;color:var(--ink);font:500 16px/1.4 var(--f);-webkit-tap-highlight-color:transparent}
 button,input,textarea{font:inherit;color:inherit}
 button{cursor:pointer;border:0;background:none;padding:0}
@@ -276,8 +276,8 @@ button.side:hover .ic{background:var(--orange)}
 .remtoggle[aria-pressed="true"] .switch i{transform:translateX(20px)}
 .remopts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .opt.rq[aria-pressed="true"]{background:var(--rem);color:var(--rem-ink)}
-.timepick{position:relative;overflow:hidden;cursor:pointer}
-.timepick input{position:absolute;inset:0;width:100%;height:100%;opacity:0;font-size:16px;cursor:pointer}
+.timerow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;padding:10px 14px 10px 18px;border-radius:20px;background:var(--surface);font-weight:800;font-size:17px;box-sizing:border-box}
+.timerow input{font:inherit;font-size:20px;font-weight:800;color:var(--rem);background:var(--rem-soft);border:0;border-radius:14px;padding:10px 14px;min-width:0}
 .remhint{font-size:14px;font-weight:600;color:var(--ink-2);padding:8px 4px 0}
 .remhint.bad{color:var(--danger)}
 .item.rem .card{background:var(--rem-soft);box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--rem) 32%,transparent),var(--shadow)}
@@ -574,7 +574,6 @@ function renderDay(){
   }
   return h + `</section>`;
 }
-const REM_QUICK = ['09:00','12:00','15:00','18:00'];
 function defaultRem(date){
   if(date && date > today()) return { date, time:'09:00' };
   const d = new Date(Date.now() + 60*60e3); d.setMinutes(0,0,0);
@@ -586,8 +585,7 @@ function remField(s){
   const sub = on ? `${hhmm(s.time)} · ${s.date ? dayLabel(s.date) : 'Today'}` : 'Off · tap to set a time';
   let h = `<button type="button" class="remtoggle" data-remtog aria-pressed="${on}"><span class="ic">${I.clock}</span><span class="lbl">Remind me<small>${esc(sub)}</small></span><span class="switch"><i></i></span></button>`;
   if(on){
-    const custom = !REM_QUICK.includes(s.time);
-    h += `<div class="remopts">${REM_QUICK.map(v=>`<button type="button" class="opt rq" data-tq="${v}" aria-pressed="${s.time===v}">${esc(hhmm(v))}</button>`).join('')}<button type="button" class="opt rq" data-tq="+60" aria-pressed="false">In 1 hour</button><label class="opt rq timepick" aria-pressed="${custom}">${custom ? esc(hhmm(s.time)) : 'Other time…'}<input type="time" id="sTime" value="${esc(s.time)}" aria-label="Pick a reminder time"></label></div>`;
+    h += `<label class="timerow"><span>Time</span><input type="time" id="sTime" value="${esc(s.time)}" aria-label="Reminder time"></label>`;
     const at = s.date ? new Date(s.date + 'T' + s.time + ':00').getTime() : 0;
     if(notifOff) h += `<div class="remhint bad">Notifications are off on this device. Turn them on in Settings.</div>`;
     else if(at && at < Date.now()) h += `<div class="remhint bad">That time has already passed. Pick a later time or day.</div>`;
@@ -903,7 +901,6 @@ function taskSheet(existing){
     else if('pr' in b.dataset){ grab(); s.projectId = b.dataset.pr || null; draw(); }
     else if('pri' in b.dataset){ grab(); s.priority = b.dataset.pri ? +b.dataset.pri : null; draw(); }
     else if('remtog' in b.dataset){ grab(); if(s.time) s.time = null; else { if(!s.date || s.date < today()) s.date = today(); const dr = defaultRem(s.date); s.date = dr.date; s.time = dr.time; } draw(); }
-    else if(b.dataset.tq){ grab(); if(b.dataset.tq==='+60'){ const d = new Date(Date.now()+60*60e3); d.setMinutes(Math.ceil(d.getMinutes()/5)*5,0,0); s.date = dateOfMs(d.getTime()); s.time = String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); } else { if(!s.date || s.date < today()) s.date = today(); s.time = b.dataset.tq; } draw(); }
     else if(b.dataset.s==='cancel') closeSheet();
     else if(b.dataset.s==='save'){
       grab(); s.title = s.title.trim();
