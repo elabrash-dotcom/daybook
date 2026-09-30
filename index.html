@@ -1210,13 +1210,27 @@ function renderUpdateBanner(show){
   $('#updbar').innerHTML = show ? `<div class="updbar"><span>A new version of Daybook is ready.</span><button type="button" id="updApply">Refresh</button></div>` : '';
   if(show){ const b = $('#updApply'); if(b) b.onclick = applyUpdate; }
 }
-function applyUpdate(){ if(swReg && swReg.waiting){ swReg.waiting.postMessage('skipWaiting'); } }
+function applyUpdate(){ if(swReg && swReg.waiting){ swReg.waiting.postMessage('skipWaiting'); } else { window.location.reload(); } }
+let htmlBase = null;
+function hsh(s){ let h = 5381; for(let i = 0; i < s.length; i++){ h = ((h << 5) + h + s.charCodeAt(i)) | 0; } return s.length + ':' + h; }
+async function checkHtml(){
+  try{
+    const r = await fetch('index.html?v=' + Date.now(), { cache: 'no-store' });
+    if(!r.ok) return;
+    const k = hsh(await r.text());
+    if(htmlBase === null) htmlBase = k;
+    else if(k !== htmlBase) renderUpdateBanner(true);
+  }catch(_){}
+}
+setInterval(() => { if(document.visibilityState === 'visible') checkHtml(); }, 90000);
+window.addEventListener('load', () => setTimeout(checkHtml, 1500));
 async function checkForUpdate(manual){
+  checkHtml();
   if(!swReg) return;
   try{ await swReg.update(); }catch(_){}
   setTimeout(() => {
     if(swReg.waiting){ renderUpdateBanner(true); if(manual) toast('Update found — tap Refresh above.'); }
-    else if(manual){ toast('You’re on the latest version.'); }
+    else if(manual && !document.querySelector('.updbar')){ toast('You’re on the latest version.'); }
   }, 800);
 }
 if('serviceWorker' in navigator){
