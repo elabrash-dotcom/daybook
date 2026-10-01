@@ -365,6 +365,16 @@ button.side:hover .ic{background:var(--orange)}
 .inststrip .st span{white-space:nowrap}
 .inststrip .st i{font-style:normal;opacity:.6}
 .inststrip button{border:0;border-radius:999px;height:30px;padding:0 12px;background:rgba(255,255,255,.28);color:inherit;font-weight:800;font-size:13px;flex:none}
+.laterbar{display:flex;align-items:center;gap:12px;width:100%;margin-top:8px;padding:12px 14px;border:0;border-radius:20px;background:var(--surface);color:var(--ink);box-shadow:var(--shadow);text-align:left}
+.laterbar .lic{width:40px;height:40px;border-radius:14px;background:var(--peach);color:var(--orange);display:grid;place-items:center;flex:none}
+.laterbar .lic svg{width:20px;height:20px}
+.laterbar .ltxt{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.2}
+.laterbar .ltxt b{font-size:17px;font-weight:800}
+.laterbar .ltxt small{font-size:12.5px;font-weight:700;color:var(--ink-3);margin-top:2px}
+.laterbar .lcount{min-width:28px;height:28px;padding:0 9px;border-radius:999px;background:var(--soft);font-size:14px;font-weight:800;display:grid;place-items:center}
+.laterbar .lchev{width:22px;height:22px;color:var(--ink-3);transform:rotate(90deg);transition:transform .2s;display:grid;place-items:center}
+.laterbar .lchev svg{width:18px;height:18px}
+.laterbar.open .lchev{transform:rotate(-90deg)}
 .askfab{position:fixed;right:16px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:8000;width:58px;height:58px;border-radius:50%;border:0;background:var(--orange);color:#fff;display:none;place-items:center;box-shadow:0 10px 26px rgba(239,123,45,.45)}:root[data-theme="dark"] .askfab{color:#1a120c}@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .askfab{color:#1a120c}}.askfab svg{width:28px;height:28px}.askfab.on{display:grid}body:has(#sheetRoot:not(:empty)) .askfab,body:has(.askwrap) .askfab{display:none}body.askopen{overflow:hidden;background:var(--bg)}body.askopen #app,body.askopen #sheetRoot{visibility:hidden}html:has(body.askopen){background:var(--bg)}.askwrap{position:fixed;left:0;right:0;top:0;height:100vh;height:100dvh;z-index:9300;background:var(--bg);color:var(--ink);display:flex;flex-direction:column;overscroll-behavior:contain}.askhead{display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top,0px)) 14px 12px;border-bottom:1px solid var(--line);flex:none}.askhead .ib{width:42px;height:42px;border-radius:50%;border:0;background:var(--surface);color:var(--ink);display:grid;place-items:center;box-shadow:var(--shadow);flex:none}.askhead .ib svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}.askhead .tt{flex:1;min-width:0;text-align:center;line-height:1.15}.askhead .tt b{display:block;font-size:18px;font-weight:800}.askhead .tt span{display:block;font-size:12px;font-weight:700;color:var(--ink-3);margin-top:2px}.askbody{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 14px 10px;display:flex;flex-direction:column;gap:14px}.askbar{flex:none;padding:8px 12px calc(10px + env(safe-area-inset-bottom,0px));background:var(--bg)}.askbar .box{display:flex;align-items:flex-end;gap:6px;background:var(--surface);border-radius:28px;padding:6px 6px 6px 18px;box-shadow:var(--shadow);border:1.5px solid var(--line)}.askbar .box:focus-within{border-color:var(--orange)}.askbar textarea{flex:1;min-width:0;box-sizing:border-box;height:44px;min-height:44px;max-height:120px;-webkit-appearance:none;appearance:none;overflow-y:auto;resize:none;border:0;background:transparent;color:var(--ink);font:inherit;font-size:16px;line-height:1.35;padding:11px 0;margin:0;outline:0}.askbar .rb{width:44px;height:44px;border-radius:50%;border:0;flex:none;display:grid;place-items:center}.askbar .rb svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}.askbar .mic{background:var(--soft);color:var(--ink)}.askbar .mic.rec{background:var(--danger);color:#fff;animation:pulse 1.2s infinite}.askbar .send{background:var(--orange);color:#fff}:root[data-theme="dark"] .askbar .send{color:#1a120c}@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .askbar .send{color:#1a120c}}.askbar .send:disabled{opacity:.35}@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(228,87,76,.5)}50%{box-shadow:0 0 0 9px rgba(228,87,76,0)}}.amsg{max-width:88%;display:flex;flex-direction:column;gap:6px}.amsg.u{align-self:flex-end;align-items:flex-end}.amsg.a{align-self:flex-start;flex-direction:row;gap:8px;align-items:flex-start;max-width:94%}.amsg .av{width:30px;height:30px;border-radius:50%;background:var(--peach);color:var(--orange);display:grid;place-items:center;flex:none;margin-top:2px}.amsg .av svg{width:16px;height:16px}.amsg .col{display:flex;flex-direction:column;gap:7px;min-width:0}.amsg .b{padding:11px 15px;border-radius:20px;font-size:16px;line-height:1.4;white-space:pre-wrap;word-break:break-word}.amsg.u .b{background:var(--orange);color:#fff;border-bottom-right-radius:6px}:root[data-theme="dark"] .amsg.u .b{color:#1a120c}@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .amsg.u .b{color:#1a120c}}.amsg.a .b{background:var(--surface);box-shadow:var(--shadow);border-top-left-radius:6px}.amsg .acts{display:flex;flex-wrap:wrap;gap:6px}.amsg .acts span{font-size:12.5px;font-weight:700;padding:5px 11px;border-radius:999px;background:var(--peach);color:var(--peach-ink)}.amsg .tools{display:flex;gap:8px;flex-wrap:wrap}.amsg .tools button{height:32px;padding:0 13px;border-radius:999px;border:0;background:var(--soft);color:var(--ink-2);font-size:13px;font-weight:800}.amsg .tools button.undo{background:var(--peach);color:var(--peach-ink)}.amsg .note{font-size:12.5px;font-weight:700;color:var(--ink-2)}.adots i{display:inline-block;width:7px;height:7px;margin:0 2px;border-radius:50%;background:var(--ink-3);animation:adot 1s infinite}.adots i:nth-child(2){animation-delay:.15s}.adots i:nth-child(3){animation-delay:.3s}@keyframes adot{0%,80%,100%{opacity:.3}40%{opacity:1}}.aempty{margin:auto 0;display:flex;flex-direction:column;gap:8px;align-items:stretch;padding:6px 4px}.aempty .hero{width:64px;height:64px;border-radius:22px;background:var(--peach);color:var(--orange);display:grid;place-items:center;margin:0 auto 6px}.aempty .hero svg{width:32px;height:32px}.aempty h3{margin:0;font-size:24px;font-weight:800;text-align:center}.aempty p{margin:0 0 10px;color:var(--ink-2);font-weight:600;font-size:15px;text-align:center}.aempty button{padding:14px 16px;border-radius:18px;border:0;background:var(--surface);color:var(--ink);font-weight:700;font-size:15px;text-align:left;box-shadow:var(--shadow)}.hbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.hbar .chip2{height:36px;padding:0 14px;border-radius:999px;border:0;background:var(--surface);color:var(--ink);font-weight:800;font-size:13px;box-shadow:var(--shadow)}.hbar .chip2.on{background:var(--ink);color:var(--bg)}.hbar .sp{flex:1}.hbar .cp{background:var(--orange);color:#fff}:root[data-theme="dark"] .hbar .cp{color:#1a120c}@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .hbar .cp{color:#1a120c}}.hday{margin:10px 2px 0;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}.hcard{background:var(--surface);border-radius:20px;padding:13px 14px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:7px}.hcard .m{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12.5px;font-weight:700;color:var(--ink-2)}.hcard .tag{padding:2px 9px;border-radius:999px;background:var(--soft);color:var(--ink)}.hcard .tag.ch{background:var(--peach);color:var(--peach-ink)}.hcard .tag.bad{background:var(--danger);color:#fff}.hcard .p{font-weight:800;font-size:15.5px;line-height:1.3;white-space:pre-wrap;word-break:break-word}.hcard .r{font-size:15px;line-height:1.35;color:var(--ink-2);white-space:pre-wrap;word-break:break-word}.hcard .f{display:flex;gap:16px}.hcard .f button{background:none;border:0;padding:2px 0;font-weight:800;font-size:13px;color:var(--orange)}</style>
 </head>
 <body>
@@ -557,7 +567,7 @@ function item(t, ctx){
     : `<button type="button" class="tile${ids.length>1&&!showPri?' multi':''}${showPri?' pri':''}" data-act="priority" aria-label="${showPri?`Change priority, currently ${t.priority}`:'Set priority'}">${tileInner}</button>`;
   const bits = [];
   if(!t.done && t.date && t.date<t0) bits.push(`<span class="red">Overdue · ${esc(dayLabel(t.date))}</span>`);
-  if(ctx==='someday') bits.push('No date');
+  if(ctx==='someday') bits.push('Added ' + ageLabel(t.createdAt));
   if(!filter.personId) bits.push(esc(namesOf(ids).join(', ')));
   else if(ids.length>1) bits.push('with ' + esc(namesOf(ids.filter(i=>i!==filter.personId)).join(', ')));
   if(pr && filter.projectId!==pr.id) bits.push(esc(pr.name));
@@ -590,11 +600,19 @@ function listHead(){
   const prog = sel>=t0 && open+done ? `<span class="prog">${done}/${open+done}</span>` : '';
   return `<div class="head"><h3>${esc(title)}</h3>${prog}${editTarget?`<button class="edit" data-editlist-kind="${editTarget.kind}" data-editlist-id="${esc(editTarget.id)}" aria-label="Edit">${I.pen}</button>`:''}<button class="link" data-history>History</button></div>`;
 }
+function ageLabel(ms){
+  const d = Math.max(0, Math.floor((Date.now() - (ms || Date.now())) / 864e5));
+  if(d === 0) return 'today';
+  if(d === 1) return 'yesterday';
+  if(d < 14) return d + ' days ago';
+  if(d < 60) return Math.round(d / 7) + ' wks ago';
+  return Math.round(d / 30) + ' months ago';
+}
 function renderDay(){
   const t0 = today();
   const open = openOn(sel).sort((a,b)=>{ const oa = a.date<t0?0:1, ob = b.date<t0?0:1; return oa-ob || prioRank(a)-prioRank(b) || byCreated(a,b); });
   const done = tasks.filter(t=>t.done && passes(t) && t.doneAt && dateOfMs(t.doneAt)===sel).sort((a,b)=>b.doneAt-a.doneAt);
-  let h = `<section class="sec" style="display:flex;flex-direction:column;gap:14px">${listHead()}`;
+  let h = `<section class="sec" style="display:flex;flex-direction:column;gap:14px;padding-bottom:84px">${listHead()}`;
   if(!open.length && !done.length) h += `<div class="empty"><b>${sel<t0?'Nothing finished that day':'Nothing here yet'}</b>${sel<t0?'Pick another day, or open History.':'Type a task in the box above and press Enter.'}</div>`;
   else {
     if(open.length){ h += (sel<t0?'':`<div class="grouphead">To do · ${open.length}</div>`) + `<div class="list">${open.map(t=>item(t)).join('')}</div>`; }
@@ -602,10 +620,8 @@ function renderDay(){
   }
   if(sel===t0){
     const someday = tasks.filter(t=>!t.done && !t.date && passes(t)).sort((a,b)=>prioRank(a)-prioRank(b) || byCreated(a,b));
-    if(someday.length){
-      h += `<div class="head" style="margin-top:8px"><h3 style="font-size:18px;color:var(--ink-2)">No date · ${someday.length}</h3><button class="link" data-someday>${showSomeday?'Hide':'Show'}</button></div>`;
-      if(showSomeday) h += `<div class="list">${someday.map(t=>item(t,'someday')).join('')}</div>`;
-    }
+    h += `<button type="button" class="laterbar${showSomeday?' open':''}" data-someday aria-expanded="${showSomeday}"><span class="lic">${I.folder}</span><span class="ltxt"><b>Later</b><small>${someday.length ? (showSomeday ? 'Tap to hide' : 'Tap to open') : 'Nothing saved yet'}</small></span><span class="lcount">${someday.length}</span><span class="lchev">${I.arrow}</span></button>`;
+    if(showSomeday && someday.length) h += `<div class="list">${someday.map(t=>item(t,'someday')).join('')}</div>`;
   }
   return h + `</section>`;
 }
@@ -810,7 +826,7 @@ function whenOpts(s){
   const t = today(), tm = addDays(t,1), nw = addDays(t,7);
   const custom = s.date && ![t,tm,nw].includes(s.date);
   const o = (v,l) => `<button type="button" class="opt" data-d="${v??''}" aria-pressed="${!s.calOpen && s.date===v}">${l}</button>`;
-  return `${o(t,'Today')}${o(tm,'Tomorrow')}<button type="button" class="opt" data-calpick aria-expanded="${!!s.calOpen}" aria-pressed="${!!custom || !!s.calOpen}">${I.cal}${custom?esc(dayLabel(s.date)):'Pick date'}</button>${o(nw,'Next week')}${o(null,'No date')}`;
+  return `${o(t,'Today')}${o(tm,'Tomorrow')}<button type="button" class="opt" data-calpick aria-expanded="${!!s.calOpen}" aria-pressed="${!!custom || !!s.calOpen}">${I.cal}${custom?esc(dayLabel(s.date)):'Pick date'}</button>${o(nw,'Next week')}${o(null,'Later')}`;
 }
 function calHTML(s){
   const m = parse(s.calMonth), y = m.getFullYear(), mo = m.getMonth();
@@ -868,7 +884,7 @@ function renderQA(){
   const sum = (key, inner, cls='') => `<button type="button" class="sum ${cls}" data-panel="${key}" aria-expanded="${qa.panel===key}">${inner}</button>`;
   if(!qaOpen){ $('#qaOpts').innerHTML = ''; return; }
   let h = `<div class="sums"><div class="sumrow">
-    ${sum('when', `${I.cal}<span class="lbl">${esc(qa.date?dayLabel(qa.date):'No date')}</span>`)}
+    ${sum('when', `${I.cal}<span class="lbl">${esc(qa.date?dayLabel(qa.date):'Later')}</span>`)}
     ${sum('who', `<span class="stack">${ps.slice(0,2).map(p=>`<i style="--c:${p.color}">${esc(initials(p.name))}</i>`).join('')}</span>${whoLbl?`<span class="lbl">${esc(whoLbl)}</span>`:''}`)}
   </div><div class="sumrow">
     ${sum('project', `${I.folder}<span class="lbl">${esc(pr?pr.name:'Project')}</span>`)}
