@@ -375,6 +375,11 @@ button.side:hover .ic{background:var(--orange)}
 .laterbar .lchev{width:22px;height:22px;color:var(--ink-3);transform:rotate(90deg);transition:transform .2s;display:grid;place-items:center}
 .laterbar .lchev svg{width:18px;height:18px}
 .laterbar.open .lchev{transform:rotate(-90deg)}
+.item .delbtn{position:absolute;right:0;top:0;bottom:0;width:84px;border-radius:22px;background:var(--danger);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:13px;font-weight:700}
+.item .delbtn svg{width:22px;height:22px}
+.item .card{touch-action:pan-y}
+.item:not(.swiped):not(.peek) .delbtn{visibility:hidden}
+.item.swiped .card{transform:translateX(-92px)}
 .tools{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .tools .laterbar{margin:0;padding:10px 12px;gap:10px;min-width:0}
 .tools .laterbar .lic{width:38px;height:38px}
@@ -551,9 +556,8 @@ function renderTools(){
   const someday = tasks.filter(t=>!t.done && !t.date && passes(t)).sort((a,b)=>prioRank(a)-prioRank(b) || byCreated(a,b));
   let h = `<div class="chipgroups"><div><div class="chiplabel">Tools</div><div class="tools">`;
   h += `<button type="button" class="laterbar remtool" data-reminders aria-label="Show reminders"><span class="lic">${I.clock}</span><span class="ltxt"><b>Reminders</b><small>${nRem ? nRem + ' set' : 'None set'}</small></span></button>`;
-  h += `<button type="button" class="laterbar${showSomeday?' open':''}" data-someday aria-expanded="${showSomeday}"><span class="lic">${I.folder}</span><span class="ltxt"><b>Later</b><small>${someday.length ? (showSomeday ? 'Hide' : 'Open') : 'Nothing saved'}</small></span><span class="lcount">${someday.length}</span></button>`;
+  h += `<button type="button" class="laterbar" data-someday aria-label="Open Later"><span class="lic">${I.folder}</span><span class="ltxt"><b>Later</b><small>${someday.length ? ('Open') : 'Nothing saved'}</small></span><span class="lcount">${someday.length}</span></button>`;
   h += `</div>`;
-  if(showSomeday && someday.length) h += `<div class="list" style="margin-top:10px">${someday.map(t=>item(t,'someday')).join('')}</div>`;
   return h + `</div></div>`;
 }
 function renderChips(){
@@ -595,6 +599,7 @@ function item(t, ctx){
   const remPill = isRem ? `<span class="rempill${t.remindAt<=Date.now()?' past':''}">${I.clock}${esc(hhmm(t.time))}${(ctx==='rem' || t.date!==sel) && t.date ? ' · ' + esc(dayLabel(t.date)) : ''}</span>` : '';
   return `<div class="item${t.done?' done':''}${isRem?' rem':''}" data-id="${esc(t.id)}">
     <button class="tick" data-act="toggle" aria-label="${t.done?'Mark not done':'Mark done'}">${I.check}</button>
+    <button type="button" class="delbtn" data-act="delete" tabindex="-1" aria-label="Delete task"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3"/></svg>Delete</button>
     <div class="card" style="--c:${color}">${tileTag}<button class="main" data-act="open"><span class="tx"><span class="tt">${esc(t.title)}</span>${remPill}<span class="ts">${bits.join(' · ')}</span>${added ? `<span class="ta">${esc(added)}</span>` : ''}</span></button>${side}</div>
   </div>`;
 }
@@ -651,6 +656,12 @@ function remField(s){
     else h += `<div class="remhint">You’ll get a notification then.</div>`;
   }
   return h;
+}
+function renderLater(){
+  const list = tasks.filter(t=>!t.done && !t.date && passes(t)).sort((a,b)=>prioRank(a)-prioRank(b) || byCreated(a,b));
+  let h = `<button class="back" data-back>${I.left}Back</button><div class="head"><h3 style="font-size:28px">Later</h3><span class="ts" style="margin-left:auto">${list.length} saved</span></div>`;
+  if(!list.length) return h + `<div class="empty"><b>Nothing in Later</b>Say “save for later…” to the voice assistant, or choose Later as the date when adding a task.</div>`;
+  return h + `<div class="sub" style="color:var(--ink-2);font-weight:600;margin:-2px 0 4px">No date, no reminders. Tap one to give it a day.</div><div class="list">${list.map(t=>item(t,'someday')).join('')}</div>`;
 }
 function renderReminders(){
   const now = Date.now();
@@ -714,12 +725,13 @@ function renderOverview(){
 }
 function render(){
   $('#warn').innerHTML = synced===false ? `<div class="warn">Connection lost — trying to reconnect. Changes may not save until it's back.</div>` : '';
-  const hist = mode==='history', ov = mode==='overview', rv = mode==='reminders';
-  $('#top').style.display = (hist||ov||rv) ? 'none' : 'flex';
-  $('#qa').style.display = (hist||ov||rv) ? 'none' : 'flex';
+  const hist = mode==='history', ov = mode==='overview', rv = mode==='reminders', lt = mode==='later';
+  $('#top').style.display = (hist||ov||rv||lt) ? 'none' : 'flex';
+  $('#qa').style.display = (hist||ov||rv||lt) ? 'none' : 'flex';
   if(hist){ $('#rest').innerHTML = renderHistory(); return; }
   if(ov){ $('#rest').innerHTML = renderOverview(); return; }
   if(rv){ $('#rest').innerHTML = renderReminders(); return; }
+  if(lt){ $('#rest').innerHTML = renderLater(); return; }
   $('#top').innerHTML = `<header class="top"><div><h1>${greeting()}, ${esc(myName())}</h1><div class="sub">${esc(longDate(today()))}</div></div>
     <div class="hbtns"><button class="hb" data-overview aria-label="Overview">${I.chart}</button><button class="hb" data-theme-quick aria-label="Switch light or dark">${isDark()?I.sun:I.moon}</button><button class="me" data-settings aria-label="Settings">${esc(initials(myName()))}<span class="badge">${I.gear}</span></button></div></header>` + renderWeek();
   renderQA();
@@ -1034,6 +1046,49 @@ function toast(msg, actLabel, act){
   toastTimer = setTimeout(()=>{ $('#toastRoot').innerHTML=''; }, 4500);
 }
 
+/* ---------- swipe to delete ---------- */
+function closeSwipes(except){ document.querySelectorAll('.item.swiped').forEach(el=>{ if(el!==except){ el.classList.remove('swiped'); const c=el.querySelector('.card'); if(c) c.style.transform=''; } }); }
+function deleteTask(id){
+  const t = tasks.find(x=>x.id===id); if(!t) return;
+  const snap = {...t};
+  del('tasks', id);
+  toast('Task deleted', 'Undo', () => { saveTask(snap); });
+}
+(function(){
+  const app = document.getElementById('app'); const W = 92;
+  let st = null, justSwiped = false;
+  app.addEventListener('touchstart', e => {
+    const c = e.target.closest('.item .card'); 
+    if(!c || e.touches.length!==1){ if(!e.target.closest('.item')) closeSwipes(); st = null; return; }
+    const it = c.closest('.item'); closeSwipes(it);
+    st = {x:e.touches[0].clientX, y:e.touches[0].clientY, c, it, lock:null, base: it.classList.contains('swiped') ? -W : 0, dx:0};
+  }, {passive:true});
+  app.addEventListener('touchmove', e => {
+    if(!st) return;
+    const dx = e.touches[0].clientX - st.x, dy = e.touches[0].clientY - st.y;
+    if(st.lock===null){
+      if(Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)*1.4) st.lock = 'x';
+      else if(Math.abs(dy) > 8){ st = null; return; }
+      else return;
+    }
+    const x = Math.max(-W-24, Math.min(0, st.base + dx));
+    st.it.classList.add('peek'); st.dx = dx; st.c.style.transition = 'none'; st.c.style.transform = 'translateX(' + x + 'px)';
+  }, {passive:true});
+  const end = () => {
+    if(!st) return;
+    const {c, it, lock, base, dx} = st; st = null;
+    c.style.transition = ''; it.classList.remove('peek');
+    if(lock !== 'x') return;
+    justSwiped = true; setTimeout(()=>{ justSwiped = false; }, 350);
+    const final = base + dx;
+    if(final < -W/2){ it.classList.add('swiped'); c.style.transform = 'translateX(' + (-W) + 'px)'; }
+    else { it.classList.remove('swiped'); c.style.transform = ''; }
+  };
+  app.addEventListener('touchend', end, {passive:true});
+  app.addEventListener('touchcancel', end, {passive:true});
+  app.addEventListener('click', e => { if(justSwiped){ e.stopPropagation(); e.preventDefault(); } }, true);
+})();
+
 /* ---------- events ---------- */
 function focusQA(){ if(mode!=='day'){ mode='day'; render(); } qaOpen = true; renderQA(); $('#qaInput').focus({preventScroll:true}); }
 $('#app').addEventListener('click', e => {
@@ -1041,6 +1096,8 @@ $('#app').addEventListener('click', e => {
   const b = e.target.closest('button'); if(!b) return;
   const it = b.closest('.item');
   if(it){ const id = it.dataset.id;
+    if(b.dataset.act==='delete'){ deleteTask(id); return; }
+    if(it.classList.contains('swiped')){ closeSwipes(); return; }
     if(b.dataset.act==='toggle') completeTask(id, tasks.find(x=>x.id===id)?.done ? null : it);
     else if(b.dataset.act==='push') pushTask(id);
     else if(b.dataset.act==='priority') quickPrioritySheet(id);
@@ -1066,7 +1123,7 @@ $('#app').addEventListener('click', e => {
   else if('morehist' in b.dataset){ histLimit += 60; render(); }
   else if('moveOverdue' in b.dataset) moveOverdue();
   else if('add' in b.dataset) taskSheet();
-  else if('someday' in b.dataset){ showSomeday = !showSomeday; render(); }
+  else if('someday' in b.dataset){ mode='later'; render(); window.scrollTo({top:0}); }
 });
 document.addEventListener('keydown', e => {
   if(e.key==='Escape' && $('#sheetRoot').innerHTML) closeSheet();
