@@ -389,6 +389,8 @@ button.side:hover .ic{background:var(--orange)}
 .shadd button{flex:none;width:54px;height:54px;border-radius:50%;border:0;background:var(--brown);color:#fff;font-size:30px;font-weight:700;line-height:1}
 .shsearch{flex:none;margin-bottom:14px;-webkit-appearance:none;appearance:none;display:block}
 .shlist{display:flex;flex-direction:column;gap:10px}
+.tsbar{display:flex;align-items:center;gap:10px}
+.tsbar .shsearch{margin-bottom:0;flex:1}
 .swr{position:relative}
 .swr .delbtn{position:absolute;right:0;top:0;bottom:0;width:84px;border-radius:20px;background:var(--danger);color:#fff;border:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:13px;font-weight:700}
 .swr .delbtn svg{width:22px;height:22px}
@@ -546,14 +548,19 @@ let people = [], projects = [], tasks = [], shop = [], shopQ = '', shEditId = nu
 let sel = null;          // selected date
 let filter = {personId:null, projectId:null};   // independent facets, either or both may be set
 let mode = 'day';        // day | history
-let histLimit = 60, showSomeday = false;
+let histLimit = 60, showSomeday = false, tq = null, tsFocus = false;
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pad = n => String(n).padStart(2,'0');
 const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const parse = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y,m-1,d); };
-const today = () => ymd(new Date());
+const SYD = 'Australia/Sydney';
+const _sf = new Intl.DateTimeFormat('en-CA',{timeZone:SYD,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});
+const sydP = ms => Object.fromEntries(_sf.formatToParts(new Date(ms)).map(x=>[x.type,x.value]));
+const sydYmd = ms => { const p = sydP(ms); return `${p.year}-${p.month}-${p.day}`; };
+const sydMs = (date,time) => { const [y,m,d]=date.split('-').map(Number), [h,mi]=time.split(':').map(Number); const off = t => { const p=sydP(t); return Date.UTC(+p.year,+p.month-1,+p.day,+p.hour,+p.minute,+p.second) - t; }; const g=Date.UTC(y,m-1,d,h,mi), f=g-off(g); return g-off(f); };
+const today = () => sydYmd(Date.now());
 const addDays = (s,n) => { const d = parse(s); d.setDate(d.getDate()+n); return ymd(d); };
 const mondayOf = s => { const d = parse(s); const k = (d.getDay()+6)%7; d.setDate(d.getDate()-k); return ymd(d); };
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,8);
@@ -567,9 +574,9 @@ function dayLabel(s){
   return d.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'});
 }
 const longDate = s => parse(s).toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-const timeOf = ms => new Date(ms).toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit'});
+const timeOf = ms => new Date(ms).toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit',timeZone:SYD});
 const hhmm = s => { if(!s) return ''; const [h,m] = s.split(':').map(Number); return new Date(2000,0,1,h,m).toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit'}); };
-const dateOfMs = ms => ymd(new Date(ms));
+const dateOfMs = ms => sydYmd(ms);
 const ME_DEFAULT = {id:'me', name:'Me', color:'#EF7B2D', order:0, isMe:true};
 const allPeople = () => { const p = [...people].sort((a,b)=>(b.isMe?1:0)-(a.isMe?1:0) || (a.order||0)-(b.order||0) || a.name.localeCompare(b.name)); return p.some(x=>x.id==='me') ? p : [ME_DEFAULT, ...p]; };
 const allProjects = () => [...projects].sort((a,b)=>(a.order||0)-(b.order||0) || a.name.localeCompare(b.name));
@@ -629,7 +636,7 @@ function moveOverdue(){
 }
 
 /* ---------- render ---------- */
-function greeting(){ const h = new Date().getHours(); return h<12?'Morning':h<17?'Afternoon':'Evening'; }
+function greeting(){ const h = +sydP(Date.now()).hour; return h<12?'Morning':h<17?'Afternoon':'Evening'; }
 function openOn(d){ // open tasks shown on a date (today includes overdue)
   const t0 = today();
   return tasks.filter(t=>!t.done && passes(t) && (t.date===d || (d===t0 && t.date && t.date<t0)));
@@ -690,6 +697,7 @@ function item(t, ctx){
   const bits = [];
   if(!t.done && t.date && t.date<t0) bits.push(`<span class="red">Overdue · ${esc(dayLabel(t.date))}</span>`);
   if(ctx==='someday') bits.push('Added ' + ageLabel(t.createdAt));
+  if(ctx==='search' && !(!t.done && t.date && t.date<t0)) bits.unshift(t.done ? 'Done ' + esc(dayLabel(dateOfMs(t.doneAt||Date.now()))) : (t.date ? esc(dayLabel(t.date)) : 'Later'));
   if(!filter.personId) bits.push(esc(namesOf(ids).join(', ')));
   else if(ids.length>1) bits.push('with ' + esc(namesOf(ids.filter(i=>i!==filter.personId)).join(', ')));
   if(pr && filter.projectId!==pr.id) bits.push(esc(pr.name));
@@ -731,6 +739,26 @@ function ageLabel(ms){
   if(d < 60) return Math.round(d / 7) + ' wks ago';
   return Math.round(d / 30) + ' months ago';
 }
+function searchTasks(q){
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean); if(!words.length) return [];
+  const hay = t => [t.title, t.note, pids(t).map(i=>person(i).name).join(' '), (project(t.projectId)||{}).name||''].join(' ').toLowerCase();
+  return tasks.filter(t => { const h = hay(t); return words.every(w=>h.includes(w)); })
+    .sort((a,b)=> (a.done?1:0)-(b.done?1:0) || (a.done ? (b.doneAt||0)-(a.doneAt||0) : (a.date||'9999').localeCompare(b.date||'9999')));
+}
+function tsResults(){
+  const q = (tq||'').trim();
+  if(!q) return `<div class="empty"><b>Search your tasks</b>Type a word from a title, note, person or project. Done and Later tasks are included.</div>`;
+  const r = searchTasks(q);
+  if(!r.length) return `<div class="empty"><b>No tasks match “${esc(q)}”</b>Try a shorter word.</div>`;
+  const open = r.filter(t=>!t.done), dn = r.filter(t=>t.done);
+  let h = `<div class="grouphead">${r.length} found</div>`;
+  if(open.length) h += `<div class="list">${open.map(t=>item(t,'search')).join('')}</div>`;
+  if(dn.length) h += `<div class="grouphead done">Done · ${dn.length}</div><div class="list">${dn.map(t=>item(t,'search')).join('')}</div>`;
+  return h;
+}
+function renderSearch(){
+  return `<div class="tsbar"><input class="shsearch" id="tsInput" type="search" placeholder="Search tasks…" value="${esc(tq||'')}" autocomplete="off" enterkeyhint="search" aria-label="Search tasks"><button type="button" class="link" data-tsclose>Close</button></div><div id="tsRes" style="display:flex;flex-direction:column;gap:14px;padding-bottom:84px">${tsResults()}</div>`;
+}
 function renderDay(){
   const t0 = today();
   const open = openOn(sel).sort((a,b)=>{ const oa = a.date<t0?0:1, ob = b.date<t0?0:1; return oa-ob || prioRank(a)-prioRank(b) || byCreated(a,b); });
@@ -745,8 +773,8 @@ function renderDay(){
 }
 function defaultRem(date){
   if(date && date > today()) return { date, time:'09:00' };
-  const d = new Date(Date.now() + 60*60e3); d.setMinutes(0,0,0);
-  return { date: dateOfMs(d.getTime()), time: String(d.getHours()).padStart(2,'0') + ':00' };
+  const p = sydP(Date.now() + 60*60e3);
+  return { date: `${p.year}-${p.month}-${p.day}`, time: p.hour + ':00' };
 }
 function remField(s){
   const on = !!s.time;
@@ -755,14 +783,14 @@ function remField(s){
   let h = `<button type="button" class="remtoggle" data-remtog aria-pressed="${on}"><span class="ic">${I.clock}</span><span class="lbl">Remind me<small>${esc(sub)}</small></span><span class="switch"><i></i></span></button>`;
   if(on){
     h += `<label class="timerow"><span>Time</span><input type="time" id="sTime" value="${esc(s.time)}" aria-label="Reminder time"></label>`;
-    const at = s.date ? new Date(s.date + 'T' + s.time + ':00').getTime() : 0;
+    const at = s.date ? sydMs(s.date, s.time) : 0;
     if(notifOff) h += `<div class="remhint bad">Notifications are off on this device. Turn them on in Settings.</div>`;
     else if(at && at < Date.now()) h += `<div class="remhint bad">That time has already passed. Pick a later time or day.</div>`;
     else h += `<div class="remhint">You’ll get a notification then.</div>`;
   }
   return h;
 }
-const shFmt = ms => ms ? new Date(ms).toLocaleString('en-AU',{weekday:'short',day:'numeric',month:'short',hour:'numeric',minute:'2-digit',hour12:true}).replace(',','').replace(/ (am|pm)$/i,(m,a)=>a.toLowerCase()) : '';
+const shFmt = ms => ms ? new Date(ms).toLocaleString('en-AU',{weekday:'short',day:'numeric',month:'short',hour:'numeric',minute:'2-digit',hour12:true,timeZone:SYD}).replace(',','').replace(/ (am|pm)$/i,(m,a)=>a.toLowerCase()) : '';
 function shRow(x, hist){
   const sub = hist ? `Bought ${shFmt(x.boughtAt)}</small><small>Added ${shFmt(x.addedAt)}` : `Added ${shFmt(x.addedAt)}`;
   const left = hist ? `<span class="shtick on">${I.check}</span>` : `<button type="button" class="shtick" data-shbuy="${esc(x.id)}" aria-label="Mark bought">${I.check}</button>`;
@@ -784,7 +812,7 @@ function renderShopping(){
 }
 function shHistList(){
   const q = shopQ.trim().toLowerCase();
-  const list = shop.filter(x=>x.boughtAt).sort((a,b)=>b.boughtAt-a.boughtAt).filter(x => !q || (x.title + ' ' + shFmt(x.addedAt) + ' ' + shFmt(x.boughtAt) + ' ' + new Date(x.boughtAt).toLocaleDateString('en-CA')).toLowerCase().includes(q));
+  const list = shop.filter(x=>x.boughtAt).sort((a,b)=>b.boughtAt-a.boughtAt).filter(x => !q || (x.title + ' ' + shFmt(x.addedAt) + ' ' + shFmt(x.boughtAt) + ' ' + new Date(x.boughtAt).toLocaleDateString('en-CA',{timeZone:SYD})).toLowerCase().includes(q));
   return list.length ? list.map(x=>shRow(x,true)).join('') : `<div class="empty"><b>${q ? 'No match' : 'Nothing bought yet'}</b>${q ? 'Try a name, or a date like “Oct 2”.' : 'Items you tick off appear here.'}</div>`;
 }
 function renderShopHist(){
@@ -867,8 +895,15 @@ function render(){
   if(lt){ $('#rest').innerHTML = renderLater(); return; }
   if(sp){ const had = document.activeElement && document.activeElement.id==='shInput'; $('#rest').innerHTML = renderShopping(); if(had) $('#shInput').focus(); const ei=document.querySelector('.shedit'); if(ei){ ei.focus(); ei.select(); } return; }
   if(sh2){ $('#rest').innerHTML = renderShopHist(); const ei=document.querySelector('.shedit'); if(ei){ ei.focus(); ei.select(); } return; }
+  if(tq !== null){
+    $('#top').style.display = 'none'; $('#qa').style.display = 'none';
+    const had = document.activeElement && document.activeElement.id==='tsInput';
+    $('#rest').innerHTML = renderSearch();
+    if(had || tsFocus){ const el = $('#tsInput'); if(el){ el.focus(); const n = el.value.length; try{ el.setSelectionRange(n,n); }catch(_){} } tsFocus = false; }
+    return;
+  }
   $('#top').innerHTML = `<header class="top"><div><h1>${greeting()}, ${esc(myName())}</h1><div class="sub">${esc(longDate(today()))}</div></div>
-    <div class="hbtns"><button class="hb" data-overview aria-label="Overview">${I.chart}</button><button class="hb" data-theme-quick aria-label="Switch light or dark">${isDark()?I.sun:I.moon}</button><button class="me" data-settings aria-label="Settings">${esc(initials(myName()))}<span class="badge">${I.gear}</span></button></div></header>` + renderWeek();
+    <div class="hbtns"><button class="hb" data-tsearch aria-label="Search tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button><button class="hb" data-overview aria-label="Overview">${I.chart}</button><button class="hb" data-theme-quick aria-label="Switch light or dark">${isDark()?I.sun:I.moon}</button><button class="me" data-settings aria-label="Settings">${esc(initials(myName()))}<span class="badge">${I.gear}</span></button></div></header>` + renderWeek();
   renderQA();
   $('#rest').innerHTML = renderOverdue() + renderTools() + renderChips() + renderDay();
 }
@@ -1067,7 +1102,7 @@ $('#qaForm').addEventListener('submit', e => {
   e.preventDefault();
   const inp = $('#qaInput'), title = inp.value.trim();
   if(!title){ qaOpen = !qaOpen; renderQA(); inp.focus({preventScroll:true}); return; }
-  const t = {id:uid(), title, note:'', personId:qa.personIds[0], personIds:[...qa.personIds], projectId:qa.projectId||null, priority:qa.priority||null, date:qa.date||null, done:false, doneAt:null, createdAt:Date.now()};
+  const t = {id:uid(), title, note:'', personId:qa.personIds[0], personIds:[...qa.personIds], projectId:qa.projectId||null, priority:qa.priority||null, date:(qa.date && qa.date<today()) ? today() : (qa.date||null), done:false, doneAt:null, createdAt:Date.now()};
   saveTask(t); inp.value = ''; inp.focus();
   const shownHere = passes(t) && (t.date===sel || (sel===today() && t.date && t.date<sel));
   qa.panel = null; qa.priority = null; renderQA();
@@ -1199,6 +1234,7 @@ function shCommit(inp, cancel){
 $('#app').addEventListener('keydown', e => { if(!e.target.classList || !e.target.classList.contains('shedit')) return; if(e.key==='Enter'){ e.preventDefault(); shCommit(e.target); } else if(e.key==='Escape'){ shCommit(e.target, true); } });
 $('#app').addEventListener('focusout', e => { if(e.target.classList && e.target.classList.contains('shedit')) shCommit(e.target); });
 $('#app').addEventListener('input', e => {
+  if(e.target.id === 'tsInput'){ tq = e.target.value; const el = document.getElementById('tsRes'); if(el) el.innerHTML = tsResults(); return; }
   if(e.target.id !== 'shSearch') return;
   shopQ = e.target.value; const el = document.getElementById('shHist'); if(el) el.innerHTML = shHistList();
 });
@@ -1278,6 +1314,8 @@ $('#app').addEventListener('click', e => {
   else if('settings' in b.dataset) settingsSheet();
   else if('themeQuick' in b.dataset) setTheme(isDark()?'light':'dark');
   else if('history' in b.dataset){ mode='history'; histLimit=60; render(); window.scrollTo({top:0}); }
+  else if('tsearch' in b.dataset){ tq = ''; tsFocus = true; render(); window.scrollTo({top:0}); }
+  else if('tsclose' in b.dataset){ tq = null; render(); window.scrollTo({top:0}); }
   else if('overview' in b.dataset){ mode='overview'; render(); window.scrollTo({top:0}); }
   else if('reminders' in b.dataset){ mode='reminders'; render(); window.scrollTo({top:0}); }
   else if('back' in b.dataset){ mode='day'; render(); window.scrollTo({top:0}); }
@@ -1308,7 +1346,12 @@ document.addEventListener('keydown', e => {
 sel = today();
 syncQA();
 let lastDay = sel;
-setInterval(() => { const t = today(); if(t!==lastDay){ if(sel===lastDay) sel = t; lastDay = t; render(); } }, 60000);
+function tick(){ const t = today(); if(t!==lastDay){ if(sel===lastDay) sel = t; lastDay = t; syncQA(); render(); } }
+setInterval(tick, 30000);
+let lastRe = 0;
+function resume(){ tick(); if(Date.now()-lastRe < 3000) return; lastRe = Date.now(); if(db && db.reload) db.reload(); }
+document.addEventListener('visibilitychange', () => { if(document.visibilityState==='visible') resume(); });
+window.addEventListener('focus', resume); window.addEventListener('pageshow', resume); window.addEventListener('online', resume);
 render();
 
 /* ---------- supabase + auth ---------- */
@@ -1320,7 +1363,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
 window.__sb = sb;
 
 function remindCols(d){
-  const at = (d.time && d.date && /^\d{2}:\d{2}$/.test(d.time)) ? new Date(d.date + 'T' + d.time + ':00').getTime() : null;
+  const at = (d.time && d.date && /^\d{2}:\d{2}$/.test(d.time)) ? sydMs(d.date, d.time) : null;
   return { time: at ? d.time : null, remind_at: at, reminded_at: (at && at === d.remindAt) ? (d.remindedAt || null) : null };
 }
 const PUSH_FN = SUPABASE_URL + '/functions/v1/push';
@@ -1351,7 +1394,7 @@ async function enablePush(){
     const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(j.endpoint));
     const id = Array.from(new Uint8Array(h)).map(b => b.toString(16).padStart(2,'0')).join('').slice(0,32);
     const device = isIOS ? 'iPhone' : /Mac/.test(navigator.userAgent) ? 'Mac' : 'Other';
-    const { error } = await sb.from('push_subs').upsert({ id, endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, tz: Intl.DateTimeFormat().resolvedOptions().timeZone, device, created_at: Date.now(), fails: 0 });
+    const { error } = await sb.from('push_subs').upsert({ id, endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, tz: 'Australia/Sydney', device, created_at: Date.now(), fails: 0 });
     if(error) throw error;
     toast('Reminders are on for this device');
   } catch(e){ console.error(e); toast('Couldn’t turn on notifications: ' + (e && e.message ? e.message : e)); }
@@ -1377,8 +1420,9 @@ function makeDb(sb){
     projects: d => ({name:d.name, color:d.color, order:d.order||0}),
     settings: d => ({name:d.name||null})
   };
-  const channels = [];
+  const channels = [], loads = [];
   return {
+    reload(){ loads.forEach(l => l()); },
     collection(col){
       return {
         doc(id){
@@ -1388,11 +1432,15 @@ function makeDb(sb){
           };
         },
         onSnapshot(onNext, onErr){
+          let seq = 0;
           const load = async () => {
+            const my = ++seq;
             const {data, error} = await sb.from(col).select('*');
+            if(my !== seq) return;
             if(error){ onErr && onErr(error); return; }
             onNext({docs: data.map(r => ({id:r.id, data:()=>OUT[col](r)}))});
           };
+          loads.push(load);
           load();
           const ch = sb.channel('rt-'+col).on('postgres_changes', {event:'*', schema:'public', table:col}, load).subscribe();
           channels.push(ch);
@@ -1415,7 +1463,7 @@ function makeDb(sb){
         }
       };
     },
-    teardown(){ channels.forEach(c => sb.removeChannel(c)); channels.length = 0; }
+    teardown(){ channels.forEach(c => sb.removeChannel(c)); channels.length = 0; loads.length = 0; }
   };
 }
 
@@ -1587,8 +1635,8 @@ if('serviceWorker' in navigator){
   var IC = { back:'<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>', clock:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>', mic:'<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>', up:'<svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg>', stop:'<svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor"/></svg>' };
   var SR = window.SpeechRecognition || window.webkitSpeechRecognition, rec = null, recOn = false;
   var SPARK = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8z"/><path d="M19 14l.9 2.6L22.5 17.5l-2.6.9L19 21l-.9-2.6-2.6-.9 2.6-.9z"/><path d="M5.5 15l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/></svg>';
-  var ymd = function(d){ d = d || new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
-  var hm = function(t){ return new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); };
+  var ymd = function(d){ return new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Sydney' }).format(d || new Date()); };
+  var hm = function(t){ return new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Sydney' }); };
   var dayLbl = function(t){ var d = new Date(t), k = ymd(d), n = new Date(); if(k === ymd(n)) return 'Today'; n.setDate(n.getDate()-1); if(k === ymd(n)) return 'Yesterday'; return d.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'short' }); };
   function copy(text){
     var done = function(){ if(window.__toast) window.__toast('Copied'); };
@@ -1700,7 +1748,7 @@ if('serviceWorker' in navigator){
     var a = { role: 'assistant', text: '', pending: true }; msgs.push(a);
     busy = true; draw();
     try {
-      var r = await call({ text: text, date: ymd(), tz: Intl.DateTimeFormat().resolvedOptions().timeZone, history: history });
+      var r = await call({ text: text, date: ymd(), tz: 'Australia/Sydney', history: history });
       a.text = r.reply || 'No answer, try again.'; a.chatId = r.chat_id; a.changed = !!r.changed; a.actions = r.actions || []; a.err = !r.chat_id;
     } catch(e){ a.text = 'Couldn’t reach the assistant. Check your connection and try again.'; a.err = true; }
     a.pending = false; busy = false; draw();
