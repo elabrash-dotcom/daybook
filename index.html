@@ -407,6 +407,10 @@ button.side:hover .ic{background:var(--orange)}
 .bmnew input:focus{border-color:var(--orange)}
 .bmnew button{height:40px;padding:0 16px;border:0;border-radius:14px;background:var(--brown);color:#fff;font-size:14px;font-weight:800}
 .bgrp{display:flex;align-items:center;justify-content:space-between;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin:12px 4px 0}
+.bgbtns{display:flex;align-items:center;gap:2px}
+.bgadd{color:var(--ink-2)}
+.bgadd.on{color:var(--orange)}
+.bquick{margin-top:2px}
 .bgdel{border:0;background:transparent;color:var(--ink-3);width:30px;height:30px;display:grid;place-items:center;border-radius:50%;padding:0}
 .bgdel svg{width:16px;height:16px}
 .bform{display:flex;flex-direction:column;gap:8px;margin-top:18px}
@@ -583,7 +587,7 @@ const I = {
 };
 
 let db = null, synced = null;
-let people = [], projects = [], tasks = [], shop = [], shopQ = '', shEditId = null, beach = [], bAddGrp = null, bConfirm = false, bMoveId = null;
+let people = [], projects = [], tasks = [], shop = [], shopQ = '', shEditId = null, beach = [], bAddGrp = null, bConfirm = false, bMoveId = null, bQuick = null, bQFocus = false;
 let sel = null;          // selected date
 let filter = {personId:null, projectId:null};   // independent facets, either or both may be set
 let mode = 'day';        // day | history
@@ -741,7 +745,7 @@ function renderBeachPage(){
   const trash = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3"/></svg>';
   let h = `<button class="back" data-back>${I.left}Back</button><div class="head"><h3 style="font-size:28px">Beach list</h3><span class="ts" style="margin-left:auto">${np} / ${total} packed</span></div>`;
   h += `<div class="beachpanel">${np?`<div class="bhead"><span>${bConfirm?'Untick all '+np+' items?':''}</span>${bConfirm?'<span class="bbtns"><button type="button" data-bno>Cancel</button><button type="button" class="bdanger" data-breset>Yes, reset</button></span>':'<button type="button" data-bask>Reset all</button>'}</div>`:''}`;
-  groups.forEach(g => { h += `<div class="bgrp" style="color:${BGC[g.name]||BGC.Other}"><span>${esc(g.name)}</span><button type="button" class="bgdel" data-bgdel="${esc(g.name)}" aria-label="Delete section ${esc(g.name)}">${trash}</button></div>` + g.items.map(bRow).join(''); });
+  groups.forEach(g => { h += `<div class="bgrp" style="color:${BGC[g.name]||BGC.Other}"><span>${esc(g.name)}</span><span class="bgbtns"><button type="button" class="bgdel bgadd${bQuick===g.name?' on':''}" data-bgadd="${esc(g.name)}" aria-label="Add item to ${esc(g.name)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><button type="button" class="bgdel" data-bgdel="${esc(g.name)}" aria-label="Delete section ${esc(g.name)}">${trash}</button></span></div>` + (bQuick===g.name ? `<form class="bmnew bquick" id="bQuickForm" autocomplete="off"><input id="bQuickIn" type="text" placeholder="Add to ${esc(g.name)} (comma-separated)…" enterkeyhint="done" aria-label="Add item to ${esc(g.name)}"><button type="submit" aria-label="Add">Add</button></form>` : '') + g.items.map(bRow).join(''); });
   if(!total) h += `<div class="empty"><b>Nothing here yet</b>Add your first item below.</div>`;
   const opts = groups.map(g=>`<option value="${esc(g.name)}"${g.name===bAddGrp?' selected':''}>${esc(g.name)}</option>`).join('');
   h += `<form class="bform" id="bForm" autocomplete="off"><label class="blabel" for="bSel">Add to section</label><select id="bSel" class="bsel">${opts}<option value="__new"${bAddGrp==='__new'||!groups.length?' selected':''}>+ New section…</option></select><input id="bNewGrp" class="bnew" type="text" placeholder="New section name" maxlength="30" aria-label="New section name"${bAddGrp==='__new'||!groups.length?'':' hidden'}><div class="shadd"><input id="bInput" type="text" placeholder="Add items (comma-separated)…" enterkeyhint="done" aria-label="Add beach item"><button type="submit" aria-label="Add">+</button></div></form></div>`;
@@ -969,7 +973,7 @@ function render(){
   if(rv){ $('#rest').innerHTML = renderReminders(); return; }
   if(lt){ $('#rest').innerHTML = renderLater(); return; }
   if(sp){ const had = document.activeElement && document.activeElement.id==='shInput'; $('#rest').innerHTML = renderShopping(); if(had) $('#shInput').focus(); const ei=document.querySelector('.shedit'); if(ei){ ei.focus(); ei.select(); } return; }
-  if(bp){ const had = document.activeElement && document.activeElement.id==='bInput'; const v = had ? document.activeElement.value : ''; $('#rest').innerHTML = renderBeachPage(); if(had){ const el=$('#bInput'); el.value=v; el.focus(); } return; }
+  if(bp){ const had = document.activeElement && document.activeElement.id==='bInput'; const v = had ? document.activeElement.value : ''; const hadQ = document.activeElement && document.activeElement.id==='bQuickIn'; const qv = hadQ ? document.activeElement.value : ''; $('#rest').innerHTML = renderBeachPage(); if(had){ const el=$('#bInput'); el.value=v; el.focus(); } const hq = hadQ; const qi = $('#bQuickIn'); if(qi){ if(hq && !bQFocus) qi.value = qv; if(hq || bQFocus) qi.focus(); } bQFocus = false; return; }
   if(sh2){ $('#rest').innerHTML = renderShopHist(); const ei=document.querySelector('.shedit'); if(ei){ ei.focus(); ei.select(); } return; }
   if(tq !== null){
     $('#top').style.display = 'none'; $('#qa').style.display = 'none';
@@ -1294,6 +1298,15 @@ function toast(msg, actLabel, act){
 
 /* ---------- shopping list events ---------- */
 $('#app').addEventListener('submit', e => {
+  if(e.target.id === 'bQuickForm'){
+    e.preventDefault();
+    const grp = bQuick; const inp = $('#bQuickIn'); const parts = (inp.value || '').split(/,|\n/).map(x=>x.trim()).filter(Boolean);
+    if(!parts.length || !grp) return;
+    const now = Date.now(); let mx = beach.reduce((m,x)=>Math.max(m,x.sort||0),0);
+    parts.forEach((title,i) => { if(!beach.some(y=>y.title.toLowerCase()===title.toLowerCase())) put('beach', uid(), {title:title.slice(0,80), grp, sort:++mx, packed:false, addedAt:now+i}); });
+    inp.value = ''; bQFocus = true; render();
+    return;
+  }
   if(e.target.id === 'bMoveForm'){
     e.preventDefault();
     let g = ($('#bMoveNew').value || '').trim().slice(0,30); if(!g || !bMoveId) return;
@@ -1421,10 +1434,11 @@ $('#app').addEventListener('click', e => {
   else if('shopping' in b.dataset){ mode='shopping'; render(); window.scrollTo({top:0}); }
   else if('shopback' in b.dataset){ mode='shopping'; render(); window.scrollTo({top:0}); }
   else if('shhist' in b.dataset){ mode='shophist'; shopQ=''; render(); window.scrollTo({top:0}); }
-  else if('beach' in b.dataset){ bConfirm = false; bMoveId = null; mode='beach'; render(); window.scrollTo({top:0}); }
+  else if('beach' in b.dataset){ bConfirm = false; bMoveId = null; bQuick = null; mode='beach'; render(); window.scrollTo({top:0}); }
   else if(b.dataset.btick){ const x = beach.find(y=>y.id===b.dataset.btick); if(x) put('beach', x.id, strip({...x, packed:!x.packed})); }
   else if(b.dataset.bdel){ const x = beach.find(y=>y.id===b.dataset.bdel); if(x){ const snap={...x}; del('beach', x.id); toast('Removed ' + snap.title, 'Undo', () => put('beach', snap.id, strip(snap))); } }
   else if(b.dataset.bgdel){ const gn = b.dataset.bgdel; const snaps = beach.filter(x=>x.grp===gn).map(x=>({...x})); snaps.forEach(x => del('beach', x.id)); toast('Removed section ' + gn, 'Undo', () => snaps.forEach(x => put('beach', x.id, strip(x)))); }
+  else if(b.dataset.bgadd){ bQuick = bQuick===b.dataset.bgadd ? null : b.dataset.bgadd; bQFocus = !!bQuick; render(); }
   else if(b.dataset.bmove){ bMoveId = bMoveId===b.dataset.bmove ? null : b.dataset.bmove; render(); }
   else if(b.dataset.bmv){ if(bMoveId) bMoveTo(bMoveId, b.dataset.bmv); }
   else if('bask' in b.dataset){ bConfirm = true; render(); }
