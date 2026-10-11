@@ -587,7 +587,7 @@ const I = {
 };
 
 let db = null, synced = null;
-let people = [], projects = [], tasks = [], shop = [], shopQ = '', shEditId = null, beach = [], bAddGrp = null, bConfirm = false, bMoveId = null, bQuick = null, bQFocus = false;
+let people = [], projects = [], tasks = [], shop = [], shopQ = '', shEditId = null, beach = [], bAddGrp = null, bConfirm = false, bMoveId = null, bQuick = null, bQFocus = false, bIFocus = false;
 let sel = null;          // selected date
 let filter = {personId:null, projectId:null};   // independent facets, either or both may be set
 let mode = 'day';        // day | history
@@ -973,7 +973,7 @@ function render(){
   if(rv){ $('#rest').innerHTML = renderReminders(); return; }
   if(lt){ $('#rest').innerHTML = renderLater(); return; }
   if(sp){ const had = document.activeElement && document.activeElement.id==='shInput'; $('#rest').innerHTML = renderShopping(); if(had) $('#shInput').focus(); const ei=document.querySelector('.shedit'); if(ei){ ei.focus(); ei.select(); } return; }
-  if(bp){ const had = document.activeElement && document.activeElement.id==='bInput'; const v = had ? document.activeElement.value : ''; const hadQ = document.activeElement && document.activeElement.id==='bQuickIn'; const qv = hadQ ? document.activeElement.value : ''; $('#rest').innerHTML = renderBeachPage(); if(had){ const el=$('#bInput'); el.value=v; el.focus(); } const hq = hadQ; const qi = $('#bQuickIn'); if(qi){ if(hq && !bQFocus) qi.value = qv; if(hq || bQFocus) qi.focus(); } bQFocus = false; return; }
+  if(bp){ const had = document.activeElement && document.activeElement.id==='bInput'; const v = had ? document.activeElement.value : ''; const hadQ = document.activeElement && document.activeElement.id==='bQuickIn'; const qv = hadQ ? document.activeElement.value : ''; $('#rest').innerHTML = renderBeachPage(); if(had || bIFocus){ const el=$('#bInput'); if(el){ el.value=v; el.focus(); } } bIFocus = false; const hq = hadQ; const qi = $('#bQuickIn'); if(qi){ if(hq && !bQFocus) qi.value = qv; if(hq || bQFocus) qi.focus(); } bQFocus = false; return; }
   if(sh2){ $('#rest').innerHTML = renderShopHist(); const ei=document.querySelector('.shedit'); if(ei){ ei.focus(); ei.select(); } return; }
   if(tq !== null){
     $('#top').style.display = 'none'; $('#qa').style.display = 'none';
@@ -1302,9 +1302,10 @@ $('#app').addEventListener('submit', e => {
     e.preventDefault();
     const grp = bQuick; const inp = $('#bQuickIn'); const parts = (inp.value || '').split(/,|\n/).map(x=>x.trim()).filter(Boolean);
     if(!parts.length || !grp) return;
+    inp.value = ''; bQFocus = true;
     const now = Date.now(); let mx = beach.reduce((m,x)=>Math.max(m,x.sort||0),0);
     parts.forEach((title,i) => { if(!beach.some(y=>y.title.toLowerCase()===title.toLowerCase())) put('beach', uid(), {title:title.slice(0,80), grp, sort:++mx, packed:false, addedAt:now+i}); });
-    inp.value = ''; bQFocus = true; render();
+    render();
     return;
   }
   if(e.target.id === 'bMoveForm'){
@@ -1320,7 +1321,7 @@ $('#app').addEventListener('submit', e => {
     const sel = $('#bSel').value; let grp = sel;
     if(sel==='__new'){ grp = ($('#bNewGrp').value || '').trim().slice(0,30); if(!grp){ toast('Name the new section first'); $('#bNewGrp').focus(); return; }
       const ex = beach.find(x=>x.grp.toLowerCase()===grp.toLowerCase()); if(ex) grp = ex.grp; }
-    bAddGrp = grp;
+    bAddGrp = grp; inp.value = ''; bIFocus = true;
     const now = Date.now(); let mx = beach.reduce((m,x)=>Math.max(m,x.sort||0),0);
     parts.forEach((title,i) => { if(!beach.some(y=>y.title.toLowerCase()===title.toLowerCase())) put('beach', uid(), {title:title.slice(0,80), grp, sort:++mx, packed:false, addedAt:now+i}); });
     inp.value = '';
@@ -1341,6 +1342,7 @@ function shCommit(inp, cancel){
 }
 $('#app').addEventListener('keydown', e => { if(!e.target.classList || !e.target.classList.contains('shedit')) return; if(e.key==='Enter'){ e.preventDefault(); shCommit(e.target); } else if(e.key==='Escape'){ shCommit(e.target, true); } });
 $('#app').addEventListener('focusout', e => { if(e.target.classList && e.target.classList.contains('shedit')) shCommit(e.target); });
+$('#app').addEventListener('mousedown', e => { if(e.target.closest('#bForm .shadd button, #bQuickForm button')) e.preventDefault(); });
 $('#app').addEventListener('change', e => {
   if(e.target.id !== 'bSel') return;
   bAddGrp = e.target.value; const n = $('#bNewGrp'); if(n){ n.hidden = bAddGrp !== '__new'; if(!n.hidden) n.focus(); }
