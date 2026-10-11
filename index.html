@@ -394,6 +394,18 @@ button.side:hover .ic{background:var(--orange)}
 .bbtns{display:flex;gap:8px}
 .bhead .bdanger{background:var(--danger);color:#fff}
 .bhead button{border:0;background:var(--soft);color:var(--ink-2);border-radius:999px;padding:6px 12px;font-size:12.5px;font-weight:800}
+.bmovebtn{flex:none;width:30px;height:30px;border:0;background:transparent;color:var(--ink-3);border-radius:50%;display:grid;place-items:center;padding:0;position:relative}
+.bmovebtn svg{width:17px;height:17px}
+.bmovebtn::after{content:"";position:absolute;inset:-6px}
+.bmovebtn.on{color:var(--orange)}
+.bmove{background:var(--soft);border-radius:16px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;margin-top:-2px}
+.bmt{font-size:12.5px;font-weight:800;color:var(--ink-2)}
+.bchips{display:flex;flex-wrap:wrap;gap:8px}
+.bchip{border:0;border-radius:999px;padding:8px 14px;font-size:13.5px;font-weight:800;background:var(--surface);color:var(--c);box-shadow:var(--shadow)}
+.bmnew{display:flex;gap:8px}
+.bmnew input{flex:1;min-width:0;height:40px;border-radius:14px;border:2px solid transparent;background:var(--surface);padding:0 12px;font-size:15px;font-weight:600;color:var(--ink);outline:none;box-sizing:border-box}
+.bmnew input:focus{border-color:var(--orange)}
+.bmnew button{height:40px;padding:0 16px;border:0;border-radius:14px;background:var(--brown);color:#fff;font-size:14px;font-weight:800}
 .bgrp{display:flex;align-items:center;justify-content:space-between;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin:12px 4px 0}
 .bgdel{border:0;background:transparent;color:var(--ink-3);width:30px;height:30px;display:grid;place-items:center;border-radius:50%;padding:0}
 .bgdel svg{width:16px;height:16px}
@@ -571,7 +583,7 @@ const I = {
 };
 
 let db = null, synced = null;
-let people = [], projects = [], tasks = [], shop = [], shopQ = '', shEditId = null, beach = [], bAddGrp = null, bConfirm = false;
+let people = [], projects = [], tasks = [], shop = [], shopQ = '', shEditId = null, beach = [], bAddGrp = null, bConfirm = false, bMoveId = null;
 let sel = null;          // selected date
 let filter = {personId:null, projectId:null};   // independent facets, either or both may be set
 let mode = 'day';        // day | history
@@ -704,7 +716,18 @@ const BGC = {Sun:'#C28A12', Water:'#3B82F6', Comfort:'#8B5CF6', Kids:'#E0509A', 
 const bSort = (a,b) => (a.sort||0)-(b.sort||0) || (a.addedAt||0)-(b.addedAt||0);
 function bRow(x){
   const trash = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3"/></svg>';
-  return `<div class="swr"><button type="button" class="delbtn" data-bdel="${esc(x.id)}" tabindex="-1" aria-label="Delete item">${trash}Delete</button><div class="shrow"><button type="button" class="shtick${x.packed?' on':''}" data-btick="${esc(x.id)}" aria-label="Toggle packed">${I.check}</button><span class="shtx"><button type="button" class="shname${x.packed?' done':''}" data-btick="${esc(x.id)}">${esc(x.title)}</button></span></div></div>`;
+  return `<div class="swr"><button type="button" class="delbtn" data-bdel="${esc(x.id)}" tabindex="-1" aria-label="Delete item">${trash}Delete</button><div class="shrow"><button type="button" class="shtick${x.packed?' on':''}" data-btick="${esc(x.id)}" aria-label="Toggle packed">${I.check}</button><span class="shtx"><button type="button" class="shname${x.packed?' done':''}" data-btick="${esc(x.id)}">${esc(x.title)}</button></span><button type="button" class="bmovebtn${bMoveId===x.id?' on':''}" data-bmove="${esc(x.id)}" aria-label="Move to another section"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M7 4L4 7M7 4l3 3M17 20V4M17 20l-3-3M17 20l3-3"/></svg></button></div></div>` + (bMoveId===x.id ? bMovePanel(x) : '');
+}
+function bMovePanel(x){
+  const others = bGroups().filter(g=>g.name!==x.grp);
+  return `<div class="bmove"><span class="bmt">Move “${esc(x.title)}” to</span><div class="bchips">${others.map(g=>`<button type="button" class="bchip" style="--c:${BGC[g.name]||BGC.Other}" data-bmv="${esc(g.name)}">${esc(g.name)}</button>`).join('')}</div><form class="bmnew" id="bMoveForm" autocomplete="off"><input id="bMoveNew" type="text" placeholder="Or a new section…" maxlength="30" aria-label="New section name"><button type="submit">Move</button></form></div>`;
+}
+function bMoveTo(id, grp){
+  const x = beach.find(y=>y.id===id); bMoveId = null;
+  if(!x || !grp || grp===x.grp){ render(); return; }
+  const snap = {...x}; const mx = beach.reduce((m,y)=>Math.max(m,y.sort||0),0);
+  put('beach', x.id, strip({...x, grp, sort:mx+1}));
+  toast('Moved ' + snap.title + ' to ' + grp, 'Undo', () => put('beach', snap.id, strip(snap)));
 }
 function renderBeach(){
   const total = beach.length, np = beach.filter(x=>x.packed).length;
@@ -1271,6 +1294,12 @@ function toast(msg, actLabel, act){
 
 /* ---------- shopping list events ---------- */
 $('#app').addEventListener('submit', e => {
+  if(e.target.id === 'bMoveForm'){
+    e.preventDefault();
+    let g = ($('#bMoveNew').value || '').trim().slice(0,30); if(!g || !bMoveId) return;
+    const ex = beach.find(x=>x.grp.toLowerCase()===g.toLowerCase()); if(ex) g = ex.grp;
+    bMoveTo(bMoveId, g); return;
+  }
   if(e.target.id === 'bForm'){
     e.preventDefault();
     const inp = $('#bInput'); const parts = (inp.value || '').split(/,|\n/).map(x=>x.trim()).filter(Boolean);
@@ -1392,10 +1421,12 @@ $('#app').addEventListener('click', e => {
   else if('shopping' in b.dataset){ mode='shopping'; render(); window.scrollTo({top:0}); }
   else if('shopback' in b.dataset){ mode='shopping'; render(); window.scrollTo({top:0}); }
   else if('shhist' in b.dataset){ mode='shophist'; shopQ=''; render(); window.scrollTo({top:0}); }
-  else if('beach' in b.dataset){ bConfirm = false; mode='beach'; render(); window.scrollTo({top:0}); }
+  else if('beach' in b.dataset){ bConfirm = false; bMoveId = null; mode='beach'; render(); window.scrollTo({top:0}); }
   else if(b.dataset.btick){ const x = beach.find(y=>y.id===b.dataset.btick); if(x) put('beach', x.id, strip({...x, packed:!x.packed})); }
   else if(b.dataset.bdel){ const x = beach.find(y=>y.id===b.dataset.bdel); if(x){ const snap={...x}; del('beach', x.id); toast('Removed ' + snap.title, 'Undo', () => put('beach', snap.id, strip(snap))); } }
   else if(b.dataset.bgdel){ const gn = b.dataset.bgdel; const snaps = beach.filter(x=>x.grp===gn).map(x=>({...x})); snaps.forEach(x => del('beach', x.id)); toast('Removed section ' + gn, 'Undo', () => snaps.forEach(x => put('beach', x.id, strip(x)))); }
+  else if(b.dataset.bmove){ bMoveId = bMoveId===b.dataset.bmove ? null : b.dataset.bmove; render(); }
+  else if(b.dataset.bmv){ if(bMoveId) bMoveTo(bMoveId, b.dataset.bmv); }
   else if('bask' in b.dataset){ bConfirm = true; render(); }
   else if('bno' in b.dataset){ bConfirm = false; render(); }
   else if('breset' in b.dataset){ bConfirm = false; const ps = beach.filter(x=>x.packed); ps.forEach(x => put('beach', x.id, strip({...x, packed:false}))); toast('Unticked ' + ps.length + ' item' + (ps.length===1?'':'s')); }
