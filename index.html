@@ -656,13 +656,26 @@ async function del(col, id){
 const strip = o => { const c = {...o}; delete c.id; return c; };
 const saveTask = t => put('tasks', t.id, strip(t));
 
+const REPEATS = [['','Never'],['d1','Daily'],['w1','Weekly'],['w2','Every 2 weeks'],['m1','Monthly'],['m3','Every 3 months'],['m6','Every 6 months'],['y1','Yearly']];
+const repLabel = r => (REPEATS.find(x=>x[0]===r)||[])[1] || '';
+function addMonths(s,n){ const d = parse(s); const day = d.getDate(); d.setDate(1); d.setMonth(d.getMonth()+n); d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth()+1, 0).getDate())); return ymd(d); }
+function stepDate(s,rule){ const k = rule[0], n = +rule.slice(1) || 1; return k==='d' ? addDays(s,n) : k==='w' ? addDays(s,7*n) : k==='m' ? addMonths(s,n) : addMonths(s,12*n); }
+function nextDue(t){ const t0 = today(); let d = t.date || t0, i = 0; do { d = stepDate(d, t.repeat); } while(d <= t0 && ++i < 400); return d; }
 function completeTask(id, el){
   const t = tasks.find(x=>x.id===id); if(!t) return;
   if(t.done){ saveTask({...t, done:false, doneAt:null}); return; }
   if(el) el.classList.add('completing');
   setTimeout(() => {
     saveTask({...t, done:true, doneAt:Date.now()});
-    toast('Nice — done', 'Undo', () => { const c = tasks.find(x=>x.id===id); if(c) saveTask({...c, done:false, doneAt:null}); });
+    let nid = null, nd = null;
+    if(t.repeat){
+      nd = nextDue(t);
+      if(!tasks.some(x=>!x.done && x.id!==id && x.repeat===t.repeat && x.title===t.title && x.date===nd)){
+        nid = uid();
+        saveTask({...t, id:nid, date:nd, done:false, doneAt:null, createdAt:Date.now(), remindAt:null, remindedAt:null});
+      }
+    }
+    toast(nid ? 'Done · next ' + dayLabel(nd) : 'Nice — done', 'Undo', () => { const c = tasks.find(x=>x.id===id); if(c) saveTask({...c, done:false, doneAt:null}); if(nid) del('tasks', nid); });
   }, el ? 380 : 0);
 }
 function pushTask(id){
@@ -781,6 +794,7 @@ function item(t, ctx){
   else if(ids.length>1) bits.push('with ' + esc(namesOf(ids.filter(i=>i!==filter.personId)).join(', ')));
   if(pr && filter.projectId!==pr.id) bits.push(esc(pr.name));
   if(t.note) bits.push('Note');
+  if(t.repeat) bits.push('↻ ' + esc(repLabel(t.repeat)));
   if(!t.done && t.priority) bits.push(`Priority ${t.priority}`);
   const added = t.createdAt ? 'Added ' + (dateOfMs(t.createdAt)===t0 ? '' : dayLabel(dateOfMs(t.createdAt)) + ', ') + timeOf(t.createdAt) : '';
   if(!bits.length) bits.push(t.done ? 'Finished' : 'To do');
@@ -1198,6 +1212,7 @@ function taskSheet(existing){
       <div class="grab"></div><div class="sheethead"><h4>${isNew?'New task':'Edit task'}</h4><button type="button" class="closex" data-s="cancel" aria-label="Close">${I.x}</button></div>
       <label class="field"><span>Task</span><input type="text" id="sTitle" value="${esc(s.title)}" placeholder="What needs doing?" enterkeyhint="done"></label>
       <div class="field"><span>When</span><div class="wrap">${whenOpts(s)}</div>${s.calOpen?calHTML(s):''}</div>
+      <div class="field"><span>Repeat</span><div class="wrap">${REPEATS.map(([v,l])=>`<button type="button" class="opt" data-rep="${v}" aria-pressed="${(s.repeat||'')===v}">${l}</button>`).join('')}</div></div>
       <div class="field"><span>Reminder</span>${remField(s)}</div>
       <div class="field"><span>Who · tap to add more</span><div class="wrap">${whoOpts(s)}</div></div>
       ${projOpts(s)}
@@ -1220,6 +1235,7 @@ function taskSheet(existing){
     const b = e.target.closest('button'); if(!b) return;
     if(['d','calpick','cal','calm'].some(k=>k in b.dataset)){ grab(); handleWhen(b, s); draw(); }
     else if('p' in b.dataset){ grab(); togglePerson(s, b.dataset.p); draw(); }
+    else if('rep' in b.dataset){ grab(); s.repeat = b.dataset.rep || null; if(s.repeat && !s.date) s.date = today(); draw(); }
     else if('pr' in b.dataset){ grab(); s.projectId = b.dataset.pr || null; draw(); }
     else if('pri' in b.dataset){ grab(); s.priority = b.dataset.pri ? +b.dataset.pri : null; draw(); }
     else if('remtog' in b.dataset){ grab(); if(s.time) s.time = null; else { if(!s.date || s.date < today()) s.date = today(); const dr = defaultRem(s.date); s.date = dr.date; s.time = dr.time; } draw(); }
@@ -1532,14 +1548,14 @@ async function testPush(){
 }
 function makeDb(sb){
   const OUT = {
-    tasks: r => ({id:r.id, title:r.title, note:r.note||'', personId:r.person_id, personIds:r.person_ids||[], projectId:r.project_id, priority:r.priority, date:r.date, done:!!r.done, doneAt:r.done_at, createdAt:r.created_at, time:r.time||null, remindAt:r.remind_at||null, remindedAt:r.reminded_at||null}),
+    tasks: r => ({id:r.id, title:r.title, note:r.note||'', personId:r.person_id, personIds:r.person_ids||[], projectId:r.project_id, priority:r.priority, date:r.date, done:!!r.done, doneAt:r.done_at, createdAt:r.created_at, time:r.time||null, repeat:r.repeat_rule||null, remindAt:r.remind_at||null, remindedAt:r.reminded_at||null}),
     shopping: r => ({id:r.id, title:r.title, addedAt:r.added_at, boughtAt:r.bought_at||null}),
     beach: r => ({id:r.id, title:r.title, grp:r.grp||'Other', sort:r.sort||0, packed:!!r.packed, addedAt:r.added_at}),
     people: r => ({id:r.id, name:r.name, color:r.color, order:r.order||0, isMe:!!r.is_me}),
     projects: r => ({id:r.id, name:r.name, color:r.color, order:r.order||0})
   };
   const IN = {
-    tasks: d => ({title:d.title, note:d.note||'', person_id:d.personId||null, person_ids:d.personIds||[], project_id:d.projectId||null, priority:d.priority||null, date:d.date||null, done:!!d.done, done_at:d.doneAt||null, created_at:d.createdAt||Date.now(), ...remindCols(d)}),
+    tasks: d => ({title:d.title, note:d.note||'', person_id:d.personId||null, person_ids:d.personIds||[], project_id:d.projectId||null, priority:d.priority||null, date:d.date||null, done:!!d.done, done_at:d.doneAt||null, created_at:d.createdAt||Date.now(), repeat_rule:d.repeat||null, ...remindCols(d)}),
     shopping: d => ({title:d.title, added_at:d.addedAt, bought_at:d.boughtAt||null}),
     beach: d => ({title:d.title, grp:d.grp||'Other', sort:d.sort||0, packed:!!d.packed, added_at:d.addedAt||Date.now()}),
     people: d => ({name:d.name, color:d.color, order:d.order||0, is_me:!!d.isMe}),
