@@ -385,13 +385,21 @@ button.side:hover .ic{background:var(--orange)}
 .shoptool .lic{background:#DDF3E6;color:#2FA66A}
 .beachbar{grid-column:1/-1;padding:8px 12px;margin-top:0}
 .beachbar .lic{width:30px;height:30px;border-radius:11px;background:#FFF1C9;color:#C28A12}
+.beachbar .lchev{transform:none}
 .beachbar .lic svg{width:17px;height:17px}
 .beachbar .ltxt b{font-size:15px}
 .beachbar .ltxt small{font-size:12px;margin-top:1px}
 .beachpanel{grid-column:1/-1;display:flex;flex-direction:column;gap:6px}
 .bhead{display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:800;color:var(--ink-2);padding:2px 4px}
 .bhead button{border:0;background:var(--soft);color:var(--ink-2);border-radius:999px;padding:6px 12px;font-size:12.5px;font-weight:800}
-.bgrp{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin:8px 4px 0}
+.bgrp{display:flex;align-items:center;justify-content:space-between;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin:12px 4px 0}
+.bgdel{border:0;background:transparent;color:var(--ink-3);width:30px;height:30px;display:grid;place-items:center;border-radius:50%;padding:0}
+.bgdel svg{width:16px;height:16px}
+.bform{display:flex;flex-direction:column;gap:8px;margin-top:18px}
+.blabel{font-size:12px;font-weight:800;color:var(--ink-2);padding:0 4px}
+.bsel,.bnew{height:46px;border-radius:16px;border:2px solid transparent;background:var(--surface);padding:0 14px;font-size:16px;font-weight:600;color:var(--ink);outline:none;box-sizing:border-box;width:100%}
+.bsel:focus,.bnew:focus{border-color:var(--orange)}
+.bnew[hidden]{display:none}
 .beachpanel .shrow{min-height:48px;padding:8px 12px;gap:10px;border-radius:16px}
 .beachpanel .swr .delbtn{border-radius:16px}
 .beachpanel .shtick{width:26px;height:26px}
@@ -561,7 +569,7 @@ const I = {
 };
 
 let db = null, synced = null;
-let people = [], projects = [], tasks = [], shop = [], shopQ = '', shEditId = null, beach = [], beachOpen = false;
+let people = [], projects = [], tasks = [], shop = [], shopQ = '', shEditId = null, beach = [], bAddGrp = null;
 let sel = null;          // selected date
 let filter = {personId:null, projectId:null};   // independent facets, either or both may be set
 let mode = 'day';        // day | history
@@ -699,13 +707,19 @@ function bRow(x){
 function renderBeach(){
   const total = beach.length, np = beach.filter(x=>x.packed).length;
   const sub = total && np===total ? 'All packed' : `${np} of ${total} packed`;
-  let h = `<button type="button" class="laterbar beachbar${beachOpen?' open':''}" data-beach aria-expanded="${beachOpen}" aria-label="Toggle beach list"><span class="lic">${I.umbrella}</span><span class="ltxt"><b>Beach list</b><small>${sub}</small></span><span class="lchev">${I.right}</span></button>`;
-  if(!beachOpen) return h;
-  h += `<div class="beachpanel"><div class="bhead"><span>${np} / ${total}</span>${np?'<button type="button" data-breset>Reset ticks</button>':''}</div>`;
-  const groups = [];
-  beach.slice().sort(bSort).forEach(x => { let g = groups.find(y=>y.name===x.grp); if(!g) groups.push(g={name:x.grp,items:[]}); g.items.push(x); });
-  groups.forEach(g => { h += `<div class="bgrp" style="color:${BGC[g.name]||BGC.Other}">${esc(g.name)}</div>` + g.items.map(bRow).join(''); });
-  h += `<form class="shadd" id="bForm" autocomplete="off"><input id="bInput" type="text" placeholder="Add to the beach list…" enterkeyhint="done" aria-label="Add beach item"><button type="submit" aria-label="Add">+</button></form></div>`;
+  return `<button type="button" class="laterbar beachbar" data-beach aria-label="Open beach list"><span class="lic">${I.umbrella}</span><span class="ltxt"><b>Beach list</b><small>${sub}</small></span><span class="lchev">${I.right}</span></button>`;
+}
+const bGroups = () => { const groups = []; beach.slice().sort(bSort).forEach(x => { let g = groups.find(y=>y.name===x.grp); if(!g) groups.push(g={name:x.grp,items:[]}); g.items.push(x); }); return groups; };
+function renderBeachPage(){
+  const total = beach.length, np = beach.filter(x=>x.packed).length;
+  const groups = bGroups();
+  const trash = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3"/></svg>';
+  let h = `<button class="back" data-back>${I.left}Back</button><div class="head"><h3 style="font-size:28px">Beach list</h3><span class="ts" style="margin-left:auto">${np} / ${total} packed</span></div>`;
+  h += `<div class="beachpanel">${np?'<div class="bhead"><span></span><button type="button" data-breset>Reset ticks</button></div>':''}`;
+  groups.forEach(g => { h += `<div class="bgrp" style="color:${BGC[g.name]||BGC.Other}"><span>${esc(g.name)}</span><button type="button" class="bgdel" data-bgdel="${esc(g.name)}" aria-label="Delete section ${esc(g.name)}">${trash}</button></div>` + g.items.map(bRow).join(''); });
+  if(!total) h += `<div class="empty"><b>Nothing here yet</b>Add your first item below.</div>`;
+  const opts = groups.map(g=>`<option value="${esc(g.name)}"${g.name===bAddGrp?' selected':''}>${esc(g.name)}</option>`).join('');
+  h += `<form class="bform" id="bForm" autocomplete="off"><label class="blabel" for="bSel">Add to section</label><select id="bSel" class="bsel">${opts}<option value="__new"${bAddGrp==='__new'||!groups.length?' selected':''}>+ New section…</option></select><input id="bNewGrp" class="bnew" type="text" placeholder="New section name" maxlength="30" aria-label="New section name"${bAddGrp==='__new'||!groups.length?'':' hidden'}><div class="shadd"><input id="bInput" type="text" placeholder="Add items (comma-separated)…" enterkeyhint="done" aria-label="Add beach item"><button type="submit" aria-label="Add">+</button></div></form></div>`;
   return h;
 }
 function renderChips(){
@@ -922,14 +936,15 @@ function renderOverview(){
 }
 function render(){
   $('#warn').innerHTML = synced===false ? `<div class="warn">Connection lost — trying to reconnect. Changes may not save until it's back.</div>` : '';
-  const hist = mode==='history', ov = mode==='overview', rv = mode==='reminders', lt = mode==='later', sp = mode==='shopping', sh2 = mode==='shophist';
-  $('#top').style.display = (hist||ov||rv||lt||sp||sh2) ? 'none' : 'flex';
-  $('#qa').style.display = (hist||ov||rv||lt||sp||sh2) ? 'none' : 'flex';
+  const hist = mode==='history', ov = mode==='overview', rv = mode==='reminders', lt = mode==='later', sp = mode==='shopping', sh2 = mode==='shophist', bp = mode==='beach';
+  $('#top').style.display = (hist||ov||rv||lt||sp||sh2||bp) ? 'none' : 'flex';
+  $('#qa').style.display = (hist||ov||rv||lt||sp||sh2||bp) ? 'none' : 'flex';
   if(hist){ $('#rest').innerHTML = renderHistory(); return; }
   if(ov){ $('#rest').innerHTML = renderOverview(); return; }
   if(rv){ $('#rest').innerHTML = renderReminders(); return; }
   if(lt){ $('#rest').innerHTML = renderLater(); return; }
   if(sp){ const had = document.activeElement && document.activeElement.id==='shInput'; $('#rest').innerHTML = renderShopping(); if(had) $('#shInput').focus(); const ei=document.querySelector('.shedit'); if(ei){ ei.focus(); ei.select(); } return; }
+  if(bp){ const had = document.activeElement && document.activeElement.id==='bInput'; const v = had ? document.activeElement.value : ''; $('#rest').innerHTML = renderBeachPage(); if(had){ const el=$('#bInput'); el.value=v; el.focus(); } return; }
   if(sh2){ $('#rest').innerHTML = renderShopHist(); const ei=document.querySelector('.shedit'); if(ei){ ei.focus(); ei.select(); } return; }
   if(tq !== null){
     $('#top').style.display = 'none'; $('#qa').style.display = 'none';
@@ -1258,8 +1273,12 @@ $('#app').addEventListener('submit', e => {
     e.preventDefault();
     const inp = $('#bInput'); const parts = (inp.value || '').split(/,|\n/).map(x=>x.trim()).filter(Boolean);
     if(!parts.length) return;
+    const sel = $('#bSel').value; let grp = sel;
+    if(sel==='__new'){ grp = ($('#bNewGrp').value || '').trim().slice(0,30); if(!grp){ toast('Name the new section first'); $('#bNewGrp').focus(); return; }
+      const ex = beach.find(x=>x.grp.toLowerCase()===grp.toLowerCase()); if(ex) grp = ex.grp; }
+    bAddGrp = grp;
     const now = Date.now(); let mx = beach.reduce((m,x)=>Math.max(m,x.sort||0),0);
-    parts.forEach((title,i) => { if(!beach.some(y=>y.title.toLowerCase()===title.toLowerCase())) put('beach', uid(), {title:title.slice(0,80), grp:'Other', sort:++mx, packed:false, addedAt:now+i}); });
+    parts.forEach((title,i) => { if(!beach.some(y=>y.title.toLowerCase()===title.toLowerCase())) put('beach', uid(), {title:title.slice(0,80), grp, sort:++mx, packed:false, addedAt:now+i}); });
     inp.value = '';
     return;
   }
@@ -1278,6 +1297,10 @@ function shCommit(inp, cancel){
 }
 $('#app').addEventListener('keydown', e => { if(!e.target.classList || !e.target.classList.contains('shedit')) return; if(e.key==='Enter'){ e.preventDefault(); shCommit(e.target); } else if(e.key==='Escape'){ shCommit(e.target, true); } });
 $('#app').addEventListener('focusout', e => { if(e.target.classList && e.target.classList.contains('shedit')) shCommit(e.target); });
+$('#app').addEventListener('change', e => {
+  if(e.target.id !== 'bSel') return;
+  bAddGrp = e.target.value; const n = $('#bNewGrp'); if(n){ n.hidden = bAddGrp !== '__new'; if(!n.hidden) n.focus(); }
+});
 $('#app').addEventListener('input', e => {
   if(e.target.id === 'tsInput'){ tq = e.target.value; const el = document.getElementById('tsRes'); if(el) el.innerHTML = tsResults(); return; }
   if(e.target.id !== 'shSearch') return;
@@ -1367,9 +1390,10 @@ $('#app').addEventListener('click', e => {
   else if('shopping' in b.dataset){ mode='shopping'; render(); window.scrollTo({top:0}); }
   else if('shopback' in b.dataset){ mode='shopping'; render(); window.scrollTo({top:0}); }
   else if('shhist' in b.dataset){ mode='shophist'; shopQ=''; render(); window.scrollTo({top:0}); }
-  else if('beach' in b.dataset){ beachOpen = !beachOpen; render(); }
+  else if('beach' in b.dataset){ mode='beach'; render(); window.scrollTo({top:0}); }
   else if(b.dataset.btick){ const x = beach.find(y=>y.id===b.dataset.btick); if(x) put('beach', x.id, strip({...x, packed:!x.packed})); }
   else if(b.dataset.bdel){ const x = beach.find(y=>y.id===b.dataset.bdel); if(x){ const snap={...x}; del('beach', x.id); toast('Removed ' + snap.title, 'Undo', () => put('beach', snap.id, strip(snap))); } }
+  else if(b.dataset.bgdel){ const gn = b.dataset.bgdel; const snaps = beach.filter(x=>x.grp===gn).map(x=>({...x})); snaps.forEach(x => del('beach', x.id)); toast('Removed section ' + gn, 'Undo', () => snaps.forEach(x => put('beach', x.id, strip(x)))); }
   else if('breset' in b.dataset){ const ps = beach.filter(x=>x.packed); ps.forEach(x => put('beach', x.id, strip({...x, packed:false}))); toast('Unticked ' + ps.length + ' item' + (ps.length===1?'':'s')); }
   else if(b.dataset.shbuy){ const x = shop.find(y=>y.id===b.dataset.shbuy); if(x) put('shopping', x.id, strip({...x, boughtAt:Date.now()})); }
   else if(b.dataset.shdel){ const x = shop.find(y=>y.id===b.dataset.shdel); if(x){ const snap={...x}; del('shopping', x.id); toast('Removed ' + snap.title, 'Undo', () => put('shopping', snap.id, strip(snap))); } }
