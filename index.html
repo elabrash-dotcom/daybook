@@ -391,6 +391,8 @@ button.side:hover .ic{background:var(--orange)}
 .beachbar .ltxt small{font-size:12px;margin-top:1px}
 .beachpanel{grid-column:1/-1;display:flex;flex-direction:column;gap:6px;padding-bottom:96px}
 .bhead{display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:800;color:var(--ink-2);padding:2px 4px}
+.bbtns{display:flex;gap:8px}
+.bhead .bdanger{background:var(--danger);color:#fff}
 .bhead button{border:0;background:var(--soft);color:var(--ink-2);border-radius:999px;padding:6px 12px;font-size:12.5px;font-weight:800}
 .bgrp{display:flex;align-items:center;justify-content:space-between;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin:12px 4px 0}
 .bgdel{border:0;background:transparent;color:var(--ink-3);width:30px;height:30px;display:grid;place-items:center;border-radius:50%;padding:0}
@@ -569,7 +571,7 @@ const I = {
 };
 
 let db = null, synced = null;
-let people = [], projects = [], tasks = [], shop = [], shopQ = '', shEditId = null, beach = [], bAddGrp = null;
+let people = [], projects = [], tasks = [], shop = [], shopQ = '', shEditId = null, beach = [], bAddGrp = null, bConfirm = false;
 let sel = null;          // selected date
 let filter = {personId:null, projectId:null};   // independent facets, either or both may be set
 let mode = 'day';        // day | history
@@ -715,7 +717,7 @@ function renderBeachPage(){
   const groups = bGroups();
   const trash = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3"/></svg>';
   let h = `<button class="back" data-back>${I.left}Back</button><div class="head"><h3 style="font-size:28px">Beach list</h3><span class="ts" style="margin-left:auto">${np} / ${total} packed</span></div>`;
-  h += `<div class="beachpanel">${np?'<div class="bhead"><span></span><button type="button" data-breset>Reset ticks</button></div>':''}`;
+  h += `<div class="beachpanel">${np?`<div class="bhead"><span>${bConfirm?'Untick all '+np+' items?':''}</span>${bConfirm?'<span class="bbtns"><button type="button" data-bno>Cancel</button><button type="button" class="bdanger" data-breset>Yes, reset</button></span>':'<button type="button" data-bask>Reset all</button>'}</div>`:''}`;
   groups.forEach(g => { h += `<div class="bgrp" style="color:${BGC[g.name]||BGC.Other}"><span>${esc(g.name)}</span><button type="button" class="bgdel" data-bgdel="${esc(g.name)}" aria-label="Delete section ${esc(g.name)}">${trash}</button></div>` + g.items.map(bRow).join(''); });
   if(!total) h += `<div class="empty"><b>Nothing here yet</b>Add your first item below.</div>`;
   const opts = groups.map(g=>`<option value="${esc(g.name)}"${g.name===bAddGrp?' selected':''}>${esc(g.name)}</option>`).join('');
@@ -1390,11 +1392,13 @@ $('#app').addEventListener('click', e => {
   else if('shopping' in b.dataset){ mode='shopping'; render(); window.scrollTo({top:0}); }
   else if('shopback' in b.dataset){ mode='shopping'; render(); window.scrollTo({top:0}); }
   else if('shhist' in b.dataset){ mode='shophist'; shopQ=''; render(); window.scrollTo({top:0}); }
-  else if('beach' in b.dataset){ mode='beach'; render(); window.scrollTo({top:0}); }
+  else if('beach' in b.dataset){ bConfirm = false; mode='beach'; render(); window.scrollTo({top:0}); }
   else if(b.dataset.btick){ const x = beach.find(y=>y.id===b.dataset.btick); if(x) put('beach', x.id, strip({...x, packed:!x.packed})); }
   else if(b.dataset.bdel){ const x = beach.find(y=>y.id===b.dataset.bdel); if(x){ const snap={...x}; del('beach', x.id); toast('Removed ' + snap.title, 'Undo', () => put('beach', snap.id, strip(snap))); } }
   else if(b.dataset.bgdel){ const gn = b.dataset.bgdel; const snaps = beach.filter(x=>x.grp===gn).map(x=>({...x})); snaps.forEach(x => del('beach', x.id)); toast('Removed section ' + gn, 'Undo', () => snaps.forEach(x => put('beach', x.id, strip(x)))); }
-  else if('breset' in b.dataset){ const ps = beach.filter(x=>x.packed); ps.forEach(x => put('beach', x.id, strip({...x, packed:false}))); toast('Unticked ' + ps.length + ' item' + (ps.length===1?'':'s')); }
+  else if('bask' in b.dataset){ bConfirm = true; render(); }
+  else if('bno' in b.dataset){ bConfirm = false; render(); }
+  else if('breset' in b.dataset){ bConfirm = false; const ps = beach.filter(x=>x.packed); ps.forEach(x => put('beach', x.id, strip({...x, packed:false}))); toast('Unticked ' + ps.length + ' item' + (ps.length===1?'':'s')); }
   else if(b.dataset.shbuy){ const x = shop.find(y=>y.id===b.dataset.shbuy); if(x) put('shopping', x.id, strip({...x, boughtAt:Date.now()})); }
   else if(b.dataset.shdel){ const x = shop.find(y=>y.id===b.dataset.shdel); if(x){ const snap={...x}; del('shopping', x.id); toast('Removed ' + snap.title, 'Undo', () => put('shopping', snap.id, strip(snap))); } }
   else if(b.dataset.shagain){ const x = shop.find(y=>y.id===b.dataset.shagain); if(x){ if(shop.some(y=>!y.boughtAt && y.title.toLowerCase()===x.title.toLowerCase())) toast(x.title + ' is already on the list'); else { put('shopping', uid(), {title:x.title, addedAt:Date.now(), boughtAt:null}); toast('Added ' + x.title + ' to the list'); } } }
