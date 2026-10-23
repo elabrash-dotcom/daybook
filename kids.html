@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#6EC6FF">
+<title>My Scoreboard</title>
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap">
+<style>
+:root{--ink:#1F1A17;--yes:#2FA66A;--no:#D9433A}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:linear-gradient(#6EC6FF,#A9DEFF 65%);color:var(--ink);font-family:"Press Start 2P",ui-monospace,monospace;overflow-x:hidden;-webkit-tap-highlight-color:transparent;min-height:100vh;position:relative}
+.pix{image-rendering:pixelated;display:block}
+.wrap{max-width:480px;margin:0 auto;padding:calc(18px + env(safe-area-inset-top,0px)) 16px 120px;position:relative;z-index:1}
+.hud{display:flex;justify-content:space-between;align-items:center;color:#fff;font-size:12px;text-shadow:2px 2px 0 rgba(0,0,0,.35)}
+.hud div{display:flex;align-items:center;gap:6px}
+.snd{background:none;border:0;font:inherit;color:#fff;font-size:16px;padding:6px;text-shadow:2px 2px 0 rgba(0,0,0,.35)}
+.cloud{position:absolute;z-index:0;opacity:.95;animation:drift 40s linear infinite}
+@keyframes drift{from{transform:translateX(-30px)}to{transform:translateX(30px)}}
+.title{text-align:center;color:#fff;font-size:22px;margin-top:30px;text-shadow:3px 3px 0 var(--ink);letter-spacing:1px;word-break:break-word}
+.hero{display:flex;justify-content:center;margin-top:20px;position:relative;height:150px}
+.hero .face{animation:idle 2.2s ease-in-out infinite}
+@keyframes idle{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.hero.joy .face{animation:joy .7s ease}
+@keyframes joy{0%{transform:scale(1)}30%{transform:scale(1.1) translateY(-10px)}60%{transform:scale(.96)}100%{transform:scale(1)}}
+.hero.ouch .face{animation:ouch .6s ease}
+@keyframes ouch{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px) rotate(-4deg)}40%{transform:translateX(8px) rotate(4deg)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}
+.pop{position:absolute;left:50%;top:-6px;transform:translateX(-50%);display:flex;align-items:center;gap:6px;color:#fff;font-size:14px;text-shadow:2px 2px 0 var(--ink);pointer-events:none;animation:pop .9s ease-out forwards}
+@keyframes pop{0%{opacity:0;transform:translate(-50%,30px)}25%{opacity:1}100%{opacity:0;transform:translate(-50%,-50px)}}
+.raincl{position:absolute;left:50%;top:-14px;transform:translateX(-50%);animation:rainc 1.2s ease forwards}
+@keyframes rainc{0%{opacity:0;transform:translate(-50%,-10px)}20%,75%{opacity:1;transform:translate(-50%,0)}100%{opacity:0}}
+.spark{position:absolute;color:#fff;font-size:16px;text-shadow:2px 2px 0 #E0A800;animation:spark 1s ease forwards;pointer-events:none}
+@keyframes spark{0%{opacity:0;transform:scale(.3)}40%{opacity:1;transform:scale(1.2)}100%{opacity:0;transform:scale(.6) translateY(-20px)}}
+.plat{display:flex;justify-content:center;gap:16px;margin-top:18px}
+.blk{width:132px;border-radius:6px;padding:14px 8px 12px;text-align:center;color:#fff;font-size:28px;box-shadow:inset -5px -5px 0 rgba(0,0,0,.2),inset 5px 5px 0 rgba(255,255,255,.3)}
+.blk.y{background:#F4B71A;color:#5A2D12}.blk.n{background:var(--no)}
+.blk small{display:block;font-size:9px;margin-top:10px;line-height:1.5}
+.blk.bump{animation:bump .4s ease}
+@keyframes bump{0%,100%{transform:translateY(0)}40%{transform:translateY(-12px)}}
+.say{margin:18px 0 0;background:#fff;border:4px solid var(--ink);border-radius:10px;padding:12px;font-size:11px;line-height:1.8;text-align:center}
+.say b{color:var(--yes)}.say i{font-style:normal;color:var(--no)}
+.sib{margin-top:12px;background:rgba(255,255,255,.88);border-radius:10px;padding:8px 10px;display:flex;align-items:center;gap:10px;font-size:10px;line-height:1.6}
+.sib .y{color:var(--yes)}.sib .n{color:var(--no)}
+.reset{text-align:center;font-size:8px;opacity:.65;margin-top:18px;line-height:1.8}
+.ground{position:fixed;left:0;right:0;bottom:0;height:64px;z-index:0;background:repeating-linear-gradient(90deg,#C8622A 0 38px,#A84E1F 38px 40px),#C8622A;border-top:6px solid #5DBB46}
+.ground:after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent 0 22px,#A84E1F 22px 24px)}
+.msg{color:#fff;text-align:center;margin-top:80px;font-size:12px;line-height:2;text-shadow:2px 2px 0 var(--ink)}
+</style>
+</head>
+<body>
+<div class="cloud" id="c1" style="top:80px;left:10px"></div>
+<div class="cloud" id="c2" style="top:150px;right:6px"></div>
+<div class="wrap" id="root"><div class="msg">LOADING…</div></div>
+<div class="ground"></div>
+<script src="pixels.js"></script>
+<script>
+(function(){
+  var FN = 'https://scjfvvwylrgpbrmdsjxb.supabase.co/functions/v1/kids-board';
+  var k = new URLSearchParams(location.search).get('k') || '';
+  var root = document.getElementById('root'), last = null;
+  document.getElementById('c1').innerHTML = PX.cloud(6);
+  document.getElementById('c2').innerHTML = PX.cloud(5);
+  var esc = function(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
+  function line(m, yes, no){
+    var b = yes - no;
+    if(m==='happy') return 'SUPER HAPPY!<br><b>' + b + ' MORE YES</b> THAN NO';
+    if(m==='smile') return 'NICE!<br><b>' + b + ' MORE YES</b> THAN NO';
+    if(m==='meh') return yes||no ? 'EVEN SCORE.<br>ONE <b>YES</b> TO GO UP!' : 'NEW WEEK!<br>SAY <b>YES</b> TO EARN COINS';
+    if(m==='sad') return 'UH OH.<br><i>' + (-b) + ' MORE NO</i> THAN YES';
+    return 'OH NO!<br><i>' + (-b) + ' MORE NO</i> THAN YES.<br>YOU CAN FIX IT!';
+  }
+  function draw(d, anim){
+    var me = d.kid, m = PX.mood(me.yes, me.no);
+    var h = '<div class="hud"><div>' + PX.coin(3) + '×' + me.yes + '</div><button class="snd" id="snd" aria-label="Sound">' + (PX.isMuted() ? '🔇' : '🔊') + '</button><div>' + PX.block(3) + '×' + me.no + '</div></div>';
+    h += '<div class="title">' + esc(me.name.toUpperCase()) + '</div>';
+    h += '<div class="hero' + (anim==='yes' ? ' joy' : anim==='no' ? ' ouch' : '') + '" id="hero"><div class="face">' + PX.face(m, 11) + '</div>';
+    if(anim==='yes') h += '<div class="pop">' + PX.coin(4) + '+1</div><span class="spark" style="left:18%;top:20px">✦</span><span class="spark" style="right:18%;top:50px;animation-delay:.15s">✦</span>';
+    if(anim==='no') h += '<div class="raincl">' + PX.rain(6) + '</div>';
+    h += '</div>';
+    h += '<div class="plat"><div class="blk y' + (anim==='yes' ? ' bump' : '') + '">' + me.yes + '<small>YES<br>COINS</small></div><div class="blk n' + (anim==='no' ? ' bump' : '') + '">' + me.no + '<small>NO<br>BLOCKS</small></div></div>';
+    h += '<div class="say">' + line(m, me.yes, me.no) + '</div>';
+    (d.others || []).forEach(function(o){ h += '<div class="sib">' + PX.face(PX.mood(o.yes, o.no), 3) + '<span>' + esc(o.name.toUpperCase()) + '</span><span style="margin-left:auto"><span class="y">' + o.yes + ' YES</span> · <span class="n">' + o.no + ' NO</span></span></div>'; });
+    h += '<div class="reset">NEW LEVEL EVERY SUNDAY<br>ONLY DAD CAN ADD POINTS</div>';
+    root.innerHTML = h;
+    document.getElementById('snd').onclick = function(){ PX.setMuted(!PX.isMuted()); PX.unlock(); this.textContent = PX.isMuted() ? '🔇' : '🔊'; };
+  }
+  function load(){
+    if(!/^[a-f0-9]{64}$/.test(k)){ root.innerHTML = '<div class="msg">THIS LINK<br>DOESN’T WORK.<br>ASK DAD FOR<br>A NEW ONE.</div>'; return; }
+    fetch(FN + '?k=' + encodeURIComponent(k), {cache:'no-store'}).then(function(r){ return r.json().then(function(j){ return {ok:r.ok, j:j}; }); }).then(function(res){
+      if(!res.ok){ root.innerHTML = '<div class="msg">THIS LINK<br>DOESN’T WORK.<br>ASK DAD FOR<br>A NEW ONE.</div>'; return; }
+      var d = res.j, anim = null;
+      if(last){ if(d.kid.yes > last.yes) anim = 'yes'; else if(d.kid.no > last.no) anim = 'no'; }
+      if(!last || anim || d.kid.yes !== last.yes || d.kid.no !== last.no || JSON.stringify(d.others) !== last.others) draw(d, anim);
+      if(anim) PX.sfx(anim === 'yes' ? 'coin' : 'bonk');
+      last = {yes:d.kid.yes, no:d.kid.no, others:JSON.stringify(d.others)};
+    }).catch(function(){ if(!last) root.innerHTML = '<div class="msg">NO INTERNET.<br>TRY AGAIN SOON.</div>'; });
+  }
+  document.addEventListener('pointerdown', function(){ PX.unlock(); }, {once:true});
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) load(); });
+  load(); setInterval(load, 15000);
+})();
+</script>
+</body>
+</html>
