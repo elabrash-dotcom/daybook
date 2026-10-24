@@ -49,6 +49,7 @@ body{background:linear-gradient(#6EC6FF,#A9DEFF 65%);color:var(--ink);font-famil
 .plat{display:flex;justify-content:center;gap:16px;margin-top:18px}
 .blk{width:132px;border-radius:6px;padding:14px 8px 12px;text-align:center;color:#fff;font-size:28px;box-shadow:inset -5px -5px 0 rgba(0,0,0,.2),inset 5px 5px 0 rgba(255,255,255,.3)}
 .blk.y{background:#F4B71A;color:#5A2D12}.blk.n{background:var(--no)}
+.blk .bico{display:flex;justify-content:center;margin-bottom:8px}
 .blk small{display:block;font-size:9px;margin-top:10px;line-height:1.5}
 .blk.bump{animation:bump .4s ease}
 @keyframes bump{0%,100%{transform:translateY(0)}40%{transform:translateY(-12px)}}
@@ -80,7 +81,7 @@ body{background:linear-gradient(#6EC6FF,#A9DEFF 65%);color:var(--ink);font-famil
     var b = yes - no;
     if(m==='happy') return 'SUPER HAPPY!<br><b>' + b + ' MORE YES</b> THAN NO';
     if(m==='smile') return 'NICE!<br><b>' + b + ' MORE YES</b> THAN NO';
-    if(m==='meh') return yes||no ? 'EVEN SCORE.<br>ONE <b>YES</b> TO GO UP!' : 'NEW WEEK!<br>SAY <b>YES</b> TO EARN COINS';
+    if(m==='meh') return yes||no ? 'EVEN SCORE.<br>ONE <b>YES</b> TO GO UP!' : 'NEW WEEK!<br>SAY <b>YES</b> TO EARN POINTS';
     if(m==='sad') return 'UH OH.<br><i>' + (-b) + ' MORE NO</i> THAN YES';
     return 'OH NO!<br><i>' + (-b) + ' MORE NO</i> THAN YES.<br>YOU CAN FIX IT!';
   }
@@ -88,19 +89,19 @@ body{background:linear-gradient(#6EC6FF,#A9DEFF 65%);color:var(--ink);font-famil
   function sig(d){ return JSON.stringify([d.kid.photo_key, (d.others || []).map(function(o){ return [o.name, o.yes, o.no, o.photo_key]; })]); }
   function draw(d, anim){
     var me = d.kid, m = PX.mood(me.yes, me.no);
-    var h = '<div class="hud"><div>' + PX.coin(3) + '×' + me.yes + '</div><button class="snd" id="snd" aria-label="Sound">' + (PX.isMuted() ? '🔇' : '🔊') + '</button><div>' + PX.block(3) + '×' + me.no + '</div></div>';
+    var h = '<div class="hud"><div>' + PX.coin(3) + '×' + me.yes + '</div><button class="snd" id="snd" aria-label="Sound">' + PX.sound(!PX.isMuted()) + '</button><div>' + PX.block(3) + '×' + me.no + '</div></div>';
     h += '<div class="title">' + esc(me.name.toUpperCase()) + '</div>';
     h += '<div class="hero' + (anim==='yes' ? ' joy' : anim==='no' ? ' ouch' : '') + '" id="hero"><div class="face">' + (me.photo ? '<div class="pring ' + m + '"><img src="' + esc(me.photo) + '" alt=""><span class="mbadge">' + PX.face(m, 2) + esc(PX.moodText(m).toUpperCase()) + '</span></div>' : PX.face(m, 11)) + '</div>';
     if(me.photo && (m==='sad' || m==='cry') && anim!=='no') h += '<div class="raincl stay">' + PX.rain(5) + '</div>';
     if(anim==='yes') h += '<div class="pop">' + PX.coin(4) + '+1</div><span class="spark" style="left:18%;top:20px">✦</span><span class="spark" style="right:18%;top:50px;animation-delay:.15s">✦</span>';
     if(anim==='no') h += '<div class="raincl">' + PX.rain(6) + '</div>';
     h += '</div>';
-    h += '<div class="plat"><div class="blk y' + (anim==='yes' ? ' bump' : '') + '">' + me.yes + '<small>YES<br>COINS</small></div><div class="blk n' + (anim==='no' ? ' bump' : '') + '">' + me.no + '<small>NO<br>BLOCKS</small></div></div>';
+    h += '<div class="plat"><div class="blk y' + (anim==='yes' ? ' bump' : '') + '"><span class="bico">' + PX.coin(3) + '</span>' + me.yes + '<small>YES</small></div><div class="blk n' + (anim==='no' ? ' bump' : '') + '"><span class="bico">' + PX.block(3) + '</span>' + me.no + '<small>NO</small></div></div>';
     h += '<div class="say">' + line(m, me.yes, me.no) + '</div>';
     (d.others || []).forEach(function(o){ h += '<div class="sib">' + (o.photo ? '<img src="' + esc(o.photo) + '" alt="">' : '') + PX.face(PX.mood(o.yes, o.no), 3) + '<span>' + esc(o.name.toUpperCase()) + '</span><span style="margin-left:auto"><span class="y">' + o.yes + ' YES</span> · <span class="n">' + o.no + ' NO</span></span></div>'; });
     h += '<div class="reset">NEW LEVEL EVERY SUNDAY<br>ONLY DAD CAN ADD POINTS</div>';
     root.innerHTML = h;
-    document.getElementById('snd').onclick = function(){ PX.setMuted(!PX.isMuted()); PX.unlock(); this.textContent = PX.isMuted() ? '🔇' : '🔊'; };
+    document.getElementById('snd').onclick = function(){ PX.setMuted(!PX.isMuted()); PX.unlock(); this.innerHTML = PX.sound(!PX.isMuted()); };
   }
   function load(){
     if(!/^[a-f0-9]{64}$/.test(k)){ root.innerHTML = '<div class="msg">THIS LINK<br>DOESN’T WORK.<br>ASK DAD FOR<br>A NEW ONE.</div>'; return; }

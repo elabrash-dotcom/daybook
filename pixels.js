@@ -10,6 +10,7 @@
     for(var y=0;y<h;y++) for(var x=0;x<w;x++){ var c = COL[grid[y][x]]; if(c) r += '<rect x="'+x+'" y="'+y+'" width="1" height="1" fill="'+c+'"/>'; }
     return '<svg class="pix" width="'+(w*s)+'" height="'+(h*s)+'" viewBox="0 0 '+w+' '+h+'" shape-rendering="crispEdges" aria-hidden="true">'+r+'</svg>';
   }
+  function emo(ch, px, label){ return '<span class="emo" role="img" aria-label="' + label + '" style="display:block;font-size:' + Math.round(px) + 'px;line-height:1;font-family:\'Apple Color Emoji\',\'Segoe UI Emoji\',\'Noto Color Emoji\',sans-serif">' + ch + '</span>'; }
   function mood(yes, no){ var b = (yes||0) - (no||0); return b>=3 ? 'happy' : b>=1 ? 'smile' : b===0 ? 'meh' : b>=-2 ? 'sad' : 'cry'; }
   var EMOJI = {happy:'😄', smile:'🙂', meh:'😐', sad:'😟', cry:'😢'};
   var MOOD_TEXT ={happy:'Super happy!', smile:'Happy', meh:'Even', sad:'A bit sad', cry:'Very sad'};
@@ -26,8 +27,12 @@
   window.PX = {
     // Faces are emoji (clearer than pixel art); s keeps the old pixel-scale sizing (12px per step).
     face: function(m, s){ return '<span class="emo" role="img" aria-label="' + (MOOD_TEXT[m] || '') + '" style="display:block;font-size:' + Math.round(11 * (s || 4)) + 'px;line-height:1;font-family:\'Apple Color Emoji\',\'Segoe UI Emoji\',\'Noto Color Emoji\',sans-serif">' + (EMOJI[m] || EMOJI.meh) + '</span>'; },
-    coin: function(s){ return pix(COIN, s || 3); },
-    block: function(s){ return pix(BLOCK, s || 3); },
+    // Yes/No counters are emoji too, matching the YES/NO buttons; s keeps the old sizing (8px per step).
+    coin: function(s){ return emo('👍', 8 * (s || 3), 'Yes'); },
+    block: function(s){ return emo('👎', 8 * (s || 3), 'No'); },
+    sound: function(on){ return on
+      ? '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path d="M15.5 9a4.5 4.5 0 010 6M18.5 6.5a8 8 0 010 11"/></svg>'
+      : '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>'; },
     cloud: function(s){ return pix(CLOUD, s || 6); },
     rain: function(s){ return pix(RAIN, s || 4); },
     mood: mood, moodText: function(m){ return MOOD_TEXT[m] || ''; },

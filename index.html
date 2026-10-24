@@ -412,7 +412,7 @@ button.side:hover .ic{background:var(--orange)}
 .bmnew input:focus{border-color:var(--orange)}
 .bmnew button{height:40px;padding:0 16px;border:0;border-radius:14px;background:var(--brown);color:#fff;font-size:14px;font-weight:800}
 .kidsbar .lic.kfaces{background:#FFF3C4;width:auto;padding:0 6px;gap:3px;display:flex;align-items:center}
-.ksnd{margin-left:auto;border:0;background:var(--surface);border-radius:999px;width:44px;height:44px;font-size:20px;box-shadow:var(--shadow)}
+.ksnd{margin-left:auto;border:0;background:var(--surface);color:var(--ink);border-radius:999px;width:44px;height:44px;display:grid;place-items:center;box-shadow:var(--shadow)}
 .kwk{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);padding:0 4px;margin-top:-8px}
 .kcard{background:var(--surface);border-radius:26px;box-shadow:var(--shadow);padding:14px;display:flex;flex-direction:column;gap:12px}
 .ktop{display:flex;align-items:center;gap:12px}
@@ -898,7 +898,7 @@ function kidScore(id){
 const KID_TINT = {happy:'#FFF3C4', smile:'#E6F6EC', meh:'#F1ECE8', sad:'#FDE3E0', cry:'#FBD3CF'};
 function renderKids(){
   const muted = window.PX && PX.isMuted();
-  let h = `<button class="back" data-back>${I.left}Back</button><div class="head"><h3 style="font-size:28px">Kids</h3><button type="button" class="ksnd" data-ksnd aria-label="${muted?'Turn sound on':'Turn sound off'}">${muted?'🔇':'🔊'}</button></div>`;
+  let h = `<button class="back" data-back>${I.left}Back</button><div class="head"><h3 style="font-size:28px">Kids</h3><button type="button" class="ksnd" data-ksnd aria-label="${muted?'Turn sound on':'Turn sound off'}">${PX.sound(!muted)}</button></div>`;
   h += `<div class="kwk">This week · fresh start every Sunday</div>`;
   allKids().forEach(k => {
     const sc = kidScore(k.id), m = PX.mood(sc.yes, sc.no), b = sc.yes - sc.no;
@@ -917,12 +917,12 @@ function renderKids(){
 function kidAdd(id, kind, delta){
   const k = kids.find(x=>x.id===id); if(!k) return;
   const sc = kidScore(id);
-  if(delta<0 && !sc[kind]){ toast(`${k.name} has no ${kind==='yes'?'YES coins':'NO blocks'} to use`); return; }
+  if(delta<0 && !sc[kind]){ toast(`${k.name} has no ${kind==='yes'?'YES':'NO'} points to use`); return; }
   const pid = uid();
   if(delta>0){ kAnim = {id, kind, at:Date.now()}; setTimeout(()=>{ if(kAnim && Date.now()-kAnim.at>=900){ kAnim = null; } }, 950); }
   put('kid_points', pid, {kidId:id, kind, delta, createdAt:Date.now()});
   if(window.PX) PX.sfx(delta<0 ? 'use' : kind==='yes' ? 'coin' : 'bonk');
-  toast(delta>0 ? `${k.name} +1 ${kind}` : `Used one of ${k.name}'s ${kind==='yes'?'yes coins':'no blocks'}`, 'Undo', () => del('kid_points', pid));
+  toast(delta>0 ? `${k.name} +1 ${kind}` : `Used one of ${k.name}'s ${kind==='yes'?'YES':'NO'} points`, 'Undo', () => del('kid_points', pid));
 }
 const kidPhotoUrls = {};
 function kidPhoto(k){
