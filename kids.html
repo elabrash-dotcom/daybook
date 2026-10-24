@@ -22,7 +22,18 @@ body{background:linear-gradient(#6EC6FF,#A9DEFF 65%);color:var(--ink);font-famil
 .cloud{position:absolute;z-index:0;opacity:.95;animation:drift 40s linear infinite}
 @keyframes drift{from{transform:translateX(-30px)}to{transform:translateX(30px)}}
 .title{text-align:center;color:#fff;font-size:22px;margin-top:30px;text-shadow:3px 3px 0 var(--ink);letter-spacing:1px;word-break:break-word}
-.hero{display:flex;justify-content:center;margin-top:20px;position:relative;height:150px}
+.hero{display:flex;justify-content:center;margin-top:20px;position:relative;min-height:150px}
+.pring{position:relative;width:196px;height:196px;border-radius:50%;padding:8px;box-shadow:0 0 0 6px #fff,0 10px 30px rgba(0,0,0,.25)}
+.pring img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;background:#fff}
+.pring.happy,.pring.smile{background:conic-gradient(#FFD23F,#2FA66A,#FFD23F,#2FA66A,#FFD23F);animation:glow 3s linear infinite}
+@keyframes glow{to{filter:hue-rotate(40deg)}}
+.pring.meh{background:#fff}
+.pring.sad,.pring.cry{background:#9AA7B4}
+.pring.sad img,.pring.cry img{filter:saturate(.55)}
+.mbadge{position:absolute;left:50%;bottom:-10px;transform:translateX(-50%);background:#FFD23F;border:3px solid var(--ink);border-radius:999px;padding:4px 10px 4px 6px;display:flex;align-items:center;gap:6px;font-size:9px;white-space:nowrap}
+.pring.sad .mbadge,.pring.cry .mbadge{background:#DDE6EE}
+.raincl.stay{animation:none;top:-4px;left:auto;right:calc(50% - 128px);transform:none}
+.sib img{width:30px;height:30px;border-radius:50%;object-fit:cover}
 .hero .face{animation:idle 2.2s ease-in-out infinite}
 @keyframes idle{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 .hero.joy .face{animation:joy .7s ease}
@@ -73,17 +84,20 @@ body{background:linear-gradient(#6EC6FF,#A9DEFF 65%);color:var(--ink);font-famil
     if(m==='sad') return 'UH OH.<br><i>' + (-b) + ' MORE NO</i> THAN YES';
     return 'OH NO!<br><i>' + (-b) + ' MORE NO</i> THAN YES.<br>YOU CAN FIX IT!';
   }
+  // Signed photo URLs change on every load, so compare the stored photo key instead.
+  function sig(d){ return JSON.stringify([d.kid.photo_key, (d.others || []).map(function(o){ return [o.name, o.yes, o.no, o.photo_key]; })]); }
   function draw(d, anim){
     var me = d.kid, m = PX.mood(me.yes, me.no);
     var h = '<div class="hud"><div>' + PX.coin(3) + '×' + me.yes + '</div><button class="snd" id="snd" aria-label="Sound">' + (PX.isMuted() ? '🔇' : '🔊') + '</button><div>' + PX.block(3) + '×' + me.no + '</div></div>';
     h += '<div class="title">' + esc(me.name.toUpperCase()) + '</div>';
-    h += '<div class="hero' + (anim==='yes' ? ' joy' : anim==='no' ? ' ouch' : '') + '" id="hero"><div class="face">' + PX.face(m, 11) + '</div>';
+    h += '<div class="hero' + (anim==='yes' ? ' joy' : anim==='no' ? ' ouch' : '') + '" id="hero"><div class="face">' + (me.photo ? '<div class="pring ' + m + '"><img src="' + esc(me.photo) + '" alt=""><span class="mbadge">' + PX.face(m, 2) + esc(PX.moodText(m).toUpperCase()) + '</span></div>' : PX.face(m, 11)) + '</div>';
+    if(me.photo && (m==='sad' || m==='cry') && anim!=='no') h += '<div class="raincl stay">' + PX.rain(5) + '</div>';
     if(anim==='yes') h += '<div class="pop">' + PX.coin(4) + '+1</div><span class="spark" style="left:18%;top:20px">✦</span><span class="spark" style="right:18%;top:50px;animation-delay:.15s">✦</span>';
     if(anim==='no') h += '<div class="raincl">' + PX.rain(6) + '</div>';
     h += '</div>';
     h += '<div class="plat"><div class="blk y' + (anim==='yes' ? ' bump' : '') + '">' + me.yes + '<small>YES<br>COINS</small></div><div class="blk n' + (anim==='no' ? ' bump' : '') + '">' + me.no + '<small>NO<br>BLOCKS</small></div></div>';
     h += '<div class="say">' + line(m, me.yes, me.no) + '</div>';
-    (d.others || []).forEach(function(o){ h += '<div class="sib">' + PX.face(PX.mood(o.yes, o.no), 3) + '<span>' + esc(o.name.toUpperCase()) + '</span><span style="margin-left:auto"><span class="y">' + o.yes + ' YES</span> · <span class="n">' + o.no + ' NO</span></span></div>'; });
+    (d.others || []).forEach(function(o){ h += '<div class="sib">' + (o.photo ? '<img src="' + esc(o.photo) + '" alt="">' : '') + PX.face(PX.mood(o.yes, o.no), 3) + '<span>' + esc(o.name.toUpperCase()) + '</span><span style="margin-left:auto"><span class="y">' + o.yes + ' YES</span> · <span class="n">' + o.no + ' NO</span></span></div>'; });
     h += '<div class="reset">NEW LEVEL EVERY SUNDAY<br>ONLY DAD CAN ADD POINTS</div>';
     root.innerHTML = h;
     document.getElementById('snd').onclick = function(){ PX.setMuted(!PX.isMuted()); PX.unlock(); this.textContent = PX.isMuted() ? '🔇' : '🔊'; };
@@ -94,9 +108,9 @@ body{background:linear-gradient(#6EC6FF,#A9DEFF 65%);color:var(--ink);font-famil
       if(!res.ok){ root.innerHTML = '<div class="msg">THIS LINK<br>DOESN’T WORK.<br>ASK DAD FOR<br>A NEW ONE.</div>'; return; }
       var d = res.j, anim = null;
       if(last){ if(d.kid.yes > last.yes) anim = 'yes'; else if(d.kid.no > last.no) anim = 'no'; }
-      if(!last || anim || d.kid.yes !== last.yes || d.kid.no !== last.no || JSON.stringify(d.others) !== last.others) draw(d, anim);
+      if(!last || anim || d.kid.yes !== last.yes || d.kid.no !== last.no || sig(d) !== last.sig) draw(d, anim);
       if(anim) PX.sfx(anim === 'yes' ? 'coin' : 'bonk');
-      last = {yes:d.kid.yes, no:d.kid.no, others:JSON.stringify(d.others)};
+      last = {yes:d.kid.yes, no:d.kid.no, sig:sig(d)};
     }).catch(function(){ if(!last) root.innerHTML = '<div class="msg">NO INTERNET.<br>TRY AGAIN SOON.</div>'; });
   }
   document.addEventListener('pointerdown', function(){ PX.unlock(); }, {once:true});

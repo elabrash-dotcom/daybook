@@ -426,6 +426,20 @@ button.side:hover .ic{background:var(--orange)}
 @keyframes kpop{0%{opacity:0;transform:translate(-50%,20px)}25%{opacity:1}100%{opacity:0;transform:translate(-50%,-40px)}}
 .krain{position:absolute;left:50%;top:-10px;transform:translateX(-50%);animation:krain 1s ease forwards}
 @keyframes krain{0%{opacity:0}20%,70%{opacity:1}100%{opacity:0}}
+.kphoto{width:100%;height:100%;border-radius:inherit;object-fit:cover;display:block}
+.kface.hasphoto{padding:4px;border-radius:50%}
+.kface.hasphoto.happy,.kface.hasphoto.smile{background:conic-gradient(#FFD23F,#2FA66A,#FFD23F,#2FA66A,#FFD23F)!important}
+.kface.hasphoto.sad,.kface.hasphoto.cry{background:#9AA7B4!important}
+.kface.hasphoto.sad .kphoto,.kface.hasphoto.cry .kphoto{filter:saturate(.55)}
+.kface.hasphoto .kphoto{border-radius:50%}
+.kcam{position:absolute;right:-6px;bottom:-6px;width:30px;height:30px;border-radius:50%;border:2px solid var(--surface);background:var(--soft);font-size:14px;display:grid;place-items:center;padding:0;box-shadow:var(--shadow)}
+.kcam::after{content:"";position:absolute;inset:-8px}
+.kpick{display:flex;align-items:center;gap:10px;width:100%;border:0;background:var(--soft);border-radius:16px;padding:16px;font:inherit;font-weight:800;font-size:16px;color:var(--ink);margin-top:10px;cursor:pointer;box-sizing:border-box;text-align:left}
+.kpick.danger{color:var(--danger)}
+.kprivate{font-size:12.5px;font-weight:700;color:var(--ink-2);margin-top:12px}
+.kstage{position:relative;overflow:hidden;border-radius:50%;margin:14px auto 10px;touch-action:none;background:var(--soft);box-shadow:0 0 0 4px var(--surface),0 0 0 6px var(--line)}
+.kstage img{position:absolute;left:0;top:0;max-width:none;user-select:none;-webkit-user-select:none;pointer-events:none;transform-origin:0 0}
+.kzoom{width:100%;margin:6px 0 14px;accent-color:var(--orange)}
 .kname{flex:1;min-width:0}.kname b{display:block;font-size:21px;font-weight:800}.kname small{font-size:12.5px;font-weight:800;color:var(--ink-2)}
 .kcounts{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
 .kc{display:flex;align-items:center;gap:6px;font-size:17px;font-weight:800}
@@ -890,7 +904,7 @@ function renderKids(){
     const sc = kidScore(k.id), m = PX.mood(sc.yes, sc.no), b = sc.yes - sc.no;
     const an = kAnim && kAnim.id===k.id && Date.now()-kAnim.at < 900 ? kAnim.kind : '';
     h += `<div class="kcard${an==='yes'?' kj':an==='no'?' ko':''}">
-      <div class="ktop"><div class="kface" style="background:${KID_TINT[m]}">${PX.face(m, 5)}${an==='yes'?`<span class="kpop">${PX.coin(3)}+1</span>`:''}${an==='no'?`<span class="krain">${PX.rain(4)}</span>`:''}</div>
+      <div class="ktop"><div class="kface${kidPhoto(k)?' hasphoto '+m:''}" style="background:${KID_TINT[m]}">${kidPhoto(k) ? `<img class="kphoto" src="${esc(kidPhoto(k))}" alt="">` : PX.face(m, 5)}<button type="button" class="kcam" data-kphoto="${esc(k.id)}" aria-label="Change ${esc(k.name)}'s photo">📷</button>${an==='yes'?`<span class="kpop">${PX.coin(3)}+1</span>`:''}${an==='no'?`<span class="krain">${PX.rain(4)}</span>`:''}</div>
         <div class="kname"><b>${esc(k.name)}</b><small>${esc(PX.moodText(m))} · ${b>0?'+':''}${b}</small></div>
         <div class="kcounts"><span class="kc${an==='yes'?' bump':''}">${PX.coin(3)}×${sc.yes}</span><span class="kc${an==='no'?' bump':''}">${PX.block(3)}×${sc.no}</span></div></div>
       <div class="kbtns"><button type="button" class="kbig y" data-kadd="${esc(k.id)}" data-kk="yes">👍 YES</button><button type="button" class="kbig n" data-kadd="${esc(k.id)}" data-kk="no">👎 NO</button></div>
@@ -909,6 +923,101 @@ function kidAdd(id, kind, delta){
   put('kid_points', pid, {kidId:id, kind, delta, createdAt:Date.now()});
   if(window.PX) PX.sfx(delta<0 ? 'use' : kind==='yes' ? 'coin' : 'bonk');
   toast(delta>0 ? `${k.name} +1 ${kind}` : `Used one of ${k.name}'s ${kind==='yes'?'yes coins':'no blocks'}`, 'Undo', () => del('kid_points', pid));
+}
+const kidPhotoUrls = {};
+function kidPhoto(k){
+  if(!k.photoPath) return null;
+  const c = kidPhotoUrls[k.photoPath];
+  if(c && c.url && c.exp > Date.now()) return c.url;
+  if(!c || (!c.pending && c.exp <= Date.now())){
+    kidPhotoUrls[k.photoPath] = {pending:true, url:c && c.url, exp:0};
+    sb.storage.from('kid-photos').createSignedUrl(k.photoPath, 3600).then(({data}) => {
+      kidPhotoUrls[k.photoPath] = {url:data && data.signedUrl, exp:Date.now() + 50*60e3};
+      if(data && data.signedUrl) render();
+    }).catch(() => { delete kidPhotoUrls[k.photoPath]; });
+  }
+  return c && c.url || null;
+}
+function kidPhotoSheet(id){
+  const k = kids.find(x=>x.id===id); if(!k) return;
+  const root = $('#sheetRoot');
+  root.innerHTML = `<div class="scrim" data-scrim><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(k.name)}'s photo">
+    <div class="grab"></div><div class="sheethead"><h4>${esc(k.name)}'s photo</h4><button type="button" class="closex" data-ks="cancel" aria-label="Close">${I.x}</button></div>
+    <label class="kpick">🖼️ Choose or take a photo<input type="file" accept="image/*" id="kFile" hidden></label>
+    ${k.photoPath ? `<button type="button" class="kpick danger" data-ks="remove">🗑️ Remove photo</button>` : ''}
+    <div class="kprivate">🔒 Saved privately in your Daybook, not on GitHub. Only ${esc(k.name)}'s link can show it.</div>
+  </div></div>`;
+  root.onclick = e => {
+    if(e.target.matches('[data-scrim]')){ closeSheet(); return; }
+    const b = e.target.closest('[data-ks]'); if(!b) return;
+    if(b.dataset.ks==='cancel') closeSheet();
+    else if(b.dataset.ks==='remove') kidPhotoRemove(k);
+  };
+  root.onchange = e => { if(e.target.id==='kFile' && e.target.files && e.target.files[0]) kidCropSheet(k, e.target.files[0]); };
+}
+function kidCropSheet(k, file){
+  const root = $('#sheetRoot'); const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onerror = () => { URL.revokeObjectURL(url); toast('Couldn’t open that photo'); };
+  img.onload = () => {
+    const S = 260, base = Math.max(S/img.naturalWidth, S/img.naturalHeight);
+    const st = {z:1, x:0, y:0};
+    root.innerHTML = `<div class="scrim" data-scrim><div class="sheet" role="dialog" aria-modal="true" aria-label="Crop photo">
+      <div class="grab"></div><div class="sheethead"><h4>Move and zoom</h4><button type="button" class="closex" data-ks="cancel" aria-label="Close">${I.x}</button></div>
+      <div class="kstage" id="kStage" style="width:${S}px;height:${S}px"><img id="kImg" src="${url}" alt="" draggable="false"></div>
+      <input type="range" id="kZoom" min="1" max="3" step="0.01" value="1" aria-label="Zoom" class="kzoom">
+      <div class="btns"><button class="btn" data-ks="cancel">Cancel</button><button class="btn primary" data-ks="save">Save photo</button></div>
+    </div></div>`;
+    const el = $('#kImg'), stage = $('#kStage');
+    const size = () => ({w:img.naturalWidth*base*st.z, h:img.naturalHeight*base*st.z});
+    const clamp = () => { const {w,h} = size(); st.x = Math.min(0, Math.max(S-w, st.x)); st.y = Math.min(0, Math.max(S-h, st.y)); };
+    const draw = () => { clamp(); const {w,h} = size(); el.style.width = w+'px'; el.style.height = h+'px'; el.style.transform = `translate(${st.x}px,${st.y}px)`; };
+    { const {w,h} = size(); st.x = (S-w)/2; st.y = (S-h)/2; }
+    draw();
+    let drag = null;
+    stage.addEventListener('pointerdown', e => { drag = {px:e.clientX, py:e.clientY, x:st.x, y:st.y}; try{ stage.setPointerCapture(e.pointerId); }catch(_){} });
+    stage.addEventListener('pointermove', e => { if(!drag) return; st.x = drag.x + e.clientX - drag.px; st.y = drag.y + e.clientY - drag.py; draw(); });
+    const up = () => { drag = null; }; stage.addEventListener('pointerup', up); stage.addEventListener('pointercancel', up);
+    $('#kZoom').addEventListener('input', e => { const {w,h} = size(); const cx = (S/2 - st.x)/w, cy = (S/2 - st.y)/h; st.z = +e.target.value; const n = size(); st.x = S/2 - cx*n.w; st.y = S/2 - cy*n.h; draw(); });
+    root.onchange = null;
+    root.onclick = async e => {
+      if(e.target.matches('[data-scrim]')){ closeSheet(); URL.revokeObjectURL(url); return; }
+      const b = e.target.closest('[data-ks]'); if(!b) return;
+      if(b.dataset.ks==='cancel'){ closeSheet(); URL.revokeObjectURL(url); return; }
+      if(b.dataset.ks==='save'){
+        b.disabled = true; b.textContent = 'Saving…';
+        const OUT = 512, f = OUT/S, {w,h} = size();
+        const cv = document.createElement('canvas'); cv.width = OUT; cv.height = OUT;
+        const c2 = cv.getContext('2d'); c2.fillStyle = '#fff'; c2.fillRect(0,0,OUT,OUT);
+        c2.drawImage(img, st.x*f, st.y*f, w*f, h*f);
+        cv.toBlob(async blob => {
+          try{ await kidPhotoSave(k, blob); closeSheet(); toast(k.name + "'s photo saved"); }
+          catch(err){ b.disabled = false; b.textContent = 'Save photo'; toast('Couldn’t save the photo. Check your connection.'); }
+          URL.revokeObjectURL(url);
+        }, 'image/jpeg', 0.85);
+      }
+    };
+  };
+  img.src = url;
+}
+async function kidPhotoSave(k, blob){
+  if(!blob) throw new Error('no image');
+  const path = `${k.id}/${Date.now()}.jpg`;
+  const up = await sb.storage.from('kid-photos').upload(path, blob, {contentType:'image/jpeg', upsert:false});
+  if(up.error) throw up.error;
+  const {error} = await sb.from('kids').update({photo_path:path}).eq('id', k.id);
+  if(error){ sb.storage.from('kid-photos').remove([path]); throw error; }
+  const old = k.photoPath; k.photoPath = path;
+  kidPhotoUrls[path] = {url:URL.createObjectURL(blob), exp:Date.now() + 50*60e3};
+  render();
+  if(old) sb.storage.from('kid-photos').remove([old]);
+}
+async function kidPhotoRemove(k){
+  const old = k.photoPath; if(!old) return;
+  const {error} = await sb.from('kids').update({photo_path:null}).eq('id', k.id);
+  if(error){ toast('Couldn’t remove the photo. Check your connection.'); return; }
+  k.photoPath = null; closeSheet(); render(); toast(k.name + "'s photo removed");
+  sb.storage.from('kid-photos').remove([old]);
 }
 async function kidLink(id){
   const k = kids.find(x=>x.id===id); if(!k || !k.shareToken) return;
@@ -1698,6 +1807,7 @@ $('#app').addEventListener('click', e => {
   else if(b.dataset.kadd){ kidAdd(b.dataset.kadd, b.dataset.kk, 1); }
   else if(b.dataset.kuse){ kidAdd(b.dataset.kuse, b.dataset.kk, -1); }
   else if(b.dataset.klink){ kidLink(b.dataset.klink); }
+  else if(b.dataset.kphoto){ kidPhotoSheet(b.dataset.kphoto); }
   else if('ksnd' in b.dataset){ PX.setMuted(!PX.isMuted()); PX.unlock(); render(); }
   else if('notes' in b.dataset){ nEditId = null; nQ = ''; nFocus = true; mode='notes'; render(); window.scrollTo({top:0}); }
   else if(b.dataset.nfix){ const x = notes.find(y=>y.id===b.dataset.nfix); if(x) put('notes', x.id, strip({...x, done:!x.done})); }
@@ -1807,7 +1917,7 @@ function makeDb(sb){
     tasks: r => ({id:r.id, title:r.title, note:r.note||'', personId:r.person_id, personIds:r.person_ids||[], projectId:r.project_id, priority:r.priority, date:r.date, done:!!r.done, doneAt:r.done_at, createdAt:r.created_at, time:r.time||null, repeat:r.repeat_rule||null, remindAt:r.remind_at||null, remindedAt:r.reminded_at||null}),
     shopping: r => ({id:r.id, title:r.title, addedAt:r.added_at, boughtAt:r.bought_at||null}),
     beach: r => ({id:r.id, title:r.title, grp:r.grp||'Other', sort:r.sort||0, packed:!!r.packed, addedAt:r.added_at}),
-    kids: r => ({id:r.id, name:r.name, color:r.color, sort:r.sort||0, shareToken:r.share_token}),
+    kids: r => ({id:r.id, name:r.name, color:r.color, sort:r.sort||0, shareToken:r.share_token, photoPath:r.photo_path||null}),
     kid_points: r => ({id:r.id, kidId:r.kid_id, kind:r.kind, delta:r.delta, createdAt:r.created_at}),
     notes: r => ({id:r.id, text:r.text, projectId:r.project_id||null, kind:r.kind==='fix'?'fix':'note', done:!!r.done, pinned:!!r.pinned, createdAt:r.created_at}),
     people: r => ({id:r.id, name:r.name, color:r.color, order:r.order||0, isMe:!!r.is_me}),
