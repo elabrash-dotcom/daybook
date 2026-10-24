@@ -411,7 +411,13 @@ button.side:hover .ic{background:var(--orange)}
 .bmnew input{flex:1;min-width:0;height:40px;border-radius:14px;border:2px solid transparent;background:var(--surface);padding:0 12px;font-size:15px;font-weight:600;color:var(--ink);outline:none;box-sizing:border-box}
 .bmnew input:focus{border-color:var(--orange)}
 .bmnew button{height:40px;padding:0 16px;border:0;border-radius:14px;background:var(--brown);color:#fff;font-size:14px;font-weight:800}
-.kidsbar .lic.kfaces{background:#FFF3C4;width:auto;padding:0 6px;gap:3px;display:flex;align-items:center}
+.laterbar.half{grid-column:auto}
+.tools .laterbar.kidsbar .lic.kav{background:none;width:auto;padding:0 2px;display:flex;align-items:center}
+.kav i{position:relative;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:#fff;font:800 13px var(--f);font-style:normal;border:2px solid var(--surface);flex:none}
+.kav i+i{margin-left:-10px}
+.kav i img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
+.kav i b{position:absolute;right:-5px;bottom:-5px}
+.kidsbar small .kup{color:#2FA66A}.kidsbar small .kdown{color:var(--danger)}
 .ksnd{margin-left:auto;border:0;background:var(--surface);color:var(--ink);border-radius:999px;width:44px;height:44px;display:grid;place-items:center;box-shadow:var(--shadow)}
 .kwk{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);padding:0 4px;margin-top:-8px}
 .kcard{background:var(--surface);border-radius:26px;box-shadow:var(--shadow);padding:14px;display:flex;flex-direction:column;gap:12px}
@@ -830,8 +836,9 @@ function renderTools(){
   h += `<button type="button" class="laterbar remtool" data-reminders aria-label="Show reminders"><span class="lic">${I.clock}</span><span class="ltxt"><b>Reminders</b><small>${nRem ? nRem + ' set' : 'None set'}</small></span></button>`;
   h += `<button type="button" class="laterbar" data-someday aria-label="Open Later"><span class="lic">${I.folder}</span><span class="ltxt"><b>Later</b><small>${someday.length ? ('Open') : 'Nothing saved'}</small></span><span class="lcount">${someday.length}</span></button>`;
   h += `<button type="button" class="laterbar shoptool" data-shopping aria-label="Open shopping list"><span class="lic">${I.cart}</span><span class="ltxt"><b>Shopping list</b><small>${nShop ? nShop + ' to buy' : 'Nothing to buy'}</small></span><span class="lcount">${nShop}</span></button>`;
-  h += `<button type="button" class="laterbar beachbar notebar" data-notes aria-label="Open notes"><span class="lic">${I.note}</span><span class="ltxt"><b>Notes</b><small>${notes.length ? notes.length + ' note' + (notes.length>1?'s':'') + (notes.some(x=>x.kind==='fix'&&!x.done) ? ' · ' + notes.filter(x=>x.kind==='fix'&&!x.done).length + ' to fix' : '') : 'Quick thoughts, no pressure'}</small></span><span class="lchev">${I.right}</span></button>`;
-  if(kids.length) h += `<button type="button" class="laterbar beachbar kidsbar" data-kids aria-label="Open kids game"><span class="lic kfaces">${allKids().map(k=>{ const sc = kidScore(k.id); return window.PX ? PX.face(PX.mood(sc.yes, sc.no), 2) : ''; }).join('')}</span><span class="ltxt"><b>Kids</b><small>${allKids().map(k=>{ const sc = kidScore(k.id); return esc(k.name) + ' ' + sc.yes + ' yes · ' + sc.no + ' no'; }).join('  |  ')}</small></span><span class="lchev">${I.right}</span></button>`;
+  const nFixOpen = notes.filter(x=>x.kind==='fix'&&!x.done).length, half = kids.length ? ' half' : ' beachbar';
+  h += `<button type="button" class="laterbar notebar${half}" data-notes aria-label="Open notes"><span class="lic">${I.note}</span><span class="ltxt"><b>Notes</b><small>${notes.length ? notes.length + ' note' + (notes.length>1?'s':'') + (nFixOpen ? ' · ' + nFixOpen + ' to fix' : '') : (kids.length ? 'Quick thoughts' : 'Quick thoughts, no pressure')}</small></span>${kids.length ? '' : `<span class="lchev">${I.right}</span>`}</button>`;
+  if(kids.length) h += `<button type="button" class="laterbar kidsbar half" data-kids aria-label="Open kids game"><span class="lic kav">${allKids().map(k=>{ const sc = kidScore(k.id), ph = kidPhoto(k); return `<i style="background:${esc(k.color||'#3B82F6')}">${ph ? `<img src="${esc(ph)}" alt="">` : esc((k.name||'?').trim().charAt(0).toUpperCase())}<b>${window.PX ? PX.face(PX.mood(sc.yes, sc.no), 1.1) : ''}</b></i>`; }).join('')}</span><span class="ltxt"><b>Kids</b><small>${allKids().map(k=>{ const sc = kidScore(k.id), d = sc.yes - sc.no; return `<span class="${d>0?'kup':d<0?'kdown':''}">${d>0?'+':d<0?'−':''}${Math.abs(d)}</span>`; }).join(' · ')}</small></span></button>`;
   h += renderBeach();
   h += `</div>`;
   return h + `</div></div>`;
