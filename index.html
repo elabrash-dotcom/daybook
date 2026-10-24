@@ -436,6 +436,12 @@ button.side:hover .ic{background:var(--orange)}
 .kcam::after{content:"";position:absolute;inset:-8px}
 .kpick{display:flex;align-items:center;gap:10px;width:100%;border:0;background:var(--soft);border-radius:16px;padding:16px;font:inherit;font-weight:800;font-size:16px;color:var(--ink);margin-top:10px;cursor:pointer;box-sizing:border-box;text-align:left}
 .kpick.danger{color:var(--danger)}
+.btn.kgo{background:var(--danger);color:#fff}
+.kreset{align-self:center;border:0;background:var(--surface);color:var(--ink-2);border-radius:999px;padding:12px 20px;font:inherit;font-weight:800;font-size:14px;box-shadow:var(--shadow);min-height:44px}
+.krs{margin-left:auto;font-size:13px;font-weight:700;color:var(--ink-2)}
+.kconfirm{display:flex;flex-direction:column;gap:10px;background:var(--soft);border-radius:18px;padding:14px;margin:12px 0 14px;font-size:15px;font-weight:600}
+.kconfirm div{display:flex;align-items:center;gap:10px}
+.kconfirm small{font-size:12.5px;font-weight:700;color:var(--ink-2)}
 .kprivate{font-size:12.5px;font-weight:700;color:var(--ink-2);margin-top:12px}
 .kstage{position:relative;overflow:hidden;border-radius:50%;margin:14px auto 10px;touch-action:none;background:var(--soft);box-shadow:0 0 0 4px var(--surface),0 0 0 6px var(--line)}
 .kstage img{position:absolute;left:0;top:0;max-width:none;user-select:none;-webkit-user-select:none;pointer-events:none;transform-origin:0 0}
@@ -891,7 +897,8 @@ function noteToTask(id){
 const allKids = () => [...kids].sort((a,b)=>(a.sort||0)-(b.sort||0) || a.name.localeCompare(b.name));
 function kidWeekStart(){ const t = today(); return sydMs(addDays(t, -parse(t).getDay()), '00:00'); }
 function kidScore(id){
-  const since = kidWeekStart(); let yes = 0, no = 0;
+  const k = kids.find(x=>x.id===id);
+  const since = Math.max(kidWeekStart(), (k && k.resetAt) || 0); let yes = 0, no = 0;
   kidPts.forEach(p => { if(p.kidId===id && p.createdAt>=since){ if(p.kind==='yes') yes += p.delta; else no += p.delta; } });
   return {yes:Math.max(0,yes), no:Math.max(0,no)};
 }
@@ -911,6 +918,7 @@ function renderKids(){
       <div class="kuses"><button type="button" class="kuse" data-kuse="${esc(k.id)}" data-kk="yes">Use a yes</button><button type="button" class="kuse" data-klink="${esc(k.id)}">🔗 ${esc(k.name)}'s link</button><button type="button" class="kuse" data-kuse="${esc(k.id)}" data-kk="no">Use a no</button></div>
     </div>`;
   });
+  h += `<button type="button" class="kreset" data-kreset>↺ Reset scores</button>`;
   h += `<div class="knote">One tap = one point. Mis-tap? Hit Undo.<br>Kids open their link to see their score.</div>`;
   return h;
 }
@@ -1018,6 +1026,52 @@ async function kidPhotoRemove(k){
   if(error){ toast('Couldn’t remove the photo. Check your connection.'); return; }
   k.photoPath = null; closeSheet(); render(); toast(k.name + "'s photo removed");
   sb.storage.from('kid-photos').remove([old]);
+}
+function kidResetSheet(){
+  const root = $('#sheetRoot'); const list = allKids();
+  const choose = () => {
+    root.innerHTML = `<div class="scrim" data-scrim><div class="sheet" role="dialog" aria-modal="true" aria-label="Reset scores">
+      <div class="grab"></div><div class="sheethead"><h4>Reset scores</h4><button type="button" class="closex" data-kr="cancel" aria-label="Close">${I.x}</button></div>
+      ${list.map(k=>{ const sc = kidScore(k.id); return `<button type="button" class="kpick" data-kr="${esc(k.id)}">↺ ${esc(k.name)}<span class="krs">${sc.yes} 👍 · ${sc.no} 👎</span></button>`; }).join('')}
+      ${list.length>1 ? `<button type="button" class="kpick" data-kr="__all">↺ Everyone</button>` : ''}
+    </div></div>`;
+  };
+  const confirmFor = id => {
+    const who = id==='__all' ? list : list.filter(k=>k.id===id);
+    const names = id==='__all' ? 'everyone' : who[0].name;
+    root.innerHTML = `<div class="scrim" data-scrim><div class="sheet" role="dialog" aria-modal="true" aria-label="Confirm reset">
+      <div class="grab"></div><div class="sheethead"><h4>Reset ${esc(names)}?</h4><button type="button" class="closex" data-kr="cancel" aria-label="Close">${I.x}</button></div>
+      <div class="kconfirm">${who.map(k=>`<div>${PX.face(PX.mood(0,0),3)}<b>${esc(k.name)}</b> goes back to <b>0 👍 and 0 👎</b></div>`).join('')}<small>Their link updates too. You can undo straight after.</small></div>
+      <div class="btns"><button class="btn" data-kr="back">Cancel</button><button class="btn kgo" data-kr="go" data-kid="${esc(id)}">Yes, reset</button></div>
+    </div></div>`;
+  };
+  choose();
+  root.onchange = null;
+  root.onclick = e => {
+    if(e.target.matches('[data-scrim]')){ closeSheet(); return; }
+    const b = e.target.closest('[data-kr]'); if(!b) return;
+    const v = b.dataset.kr;
+    if(v==='cancel') closeSheet();
+    else if(v==='back') choose();
+    else if(v==='go') kidReset(b.dataset.kid==='__all' ? list.map(k=>k.id) : [b.dataset.kid]);
+    else confirmFor(v);
+  };
+}
+async function kidReset(ids){
+  const now = Date.now();
+  const before = ids.map(id => { const k = kids.find(x=>x.id===id); return {id, resetAt:k ? k.resetAt : null}; });
+  const {error} = await sb.from('kids').update({reset_at:now}).in('id', ids);
+  if(error){ toast('Couldn’t reset. Check your connection.'); return; }
+  ids.forEach(id => { const k = kids.find(x=>x.id===id); if(k) k.resetAt = now; });
+  closeSheet(); render();
+  const names = ids.length>1 ? 'Everyone' : (kids.find(x=>x.id===ids[0]) || {}).name;
+  toast(names + ' reset to 0', 'Undo', async () => {
+    for(const b of before){
+      const {error:e2} = await sb.from('kids').update({reset_at:b.resetAt}).eq('id', b.id);
+      if(!e2){ const k = kids.find(x=>x.id===b.id); if(k) k.resetAt = b.resetAt; }
+    }
+    render();
+  });
 }
 async function kidLink(id){
   const k = kids.find(x=>x.id===id); if(!k || !k.shareToken) return;
@@ -1808,6 +1862,7 @@ $('#app').addEventListener('click', e => {
   else if(b.dataset.kuse){ kidAdd(b.dataset.kuse, b.dataset.kk, -1); }
   else if(b.dataset.klink){ kidLink(b.dataset.klink); }
   else if(b.dataset.kphoto){ kidPhotoSheet(b.dataset.kphoto); }
+  else if('kreset' in b.dataset){ kidResetSheet(); }
   else if('ksnd' in b.dataset){ PX.setMuted(!PX.isMuted()); PX.unlock(); render(); }
   else if('notes' in b.dataset){ nEditId = null; nQ = ''; nFocus = true; mode='notes'; render(); window.scrollTo({top:0}); }
   else if(b.dataset.nfix){ const x = notes.find(y=>y.id===b.dataset.nfix); if(x) put('notes', x.id, strip({...x, done:!x.done})); }
@@ -1917,7 +1972,7 @@ function makeDb(sb){
     tasks: r => ({id:r.id, title:r.title, note:r.note||'', personId:r.person_id, personIds:r.person_ids||[], projectId:r.project_id, priority:r.priority, date:r.date, done:!!r.done, doneAt:r.done_at, createdAt:r.created_at, time:r.time||null, repeat:r.repeat_rule||null, remindAt:r.remind_at||null, remindedAt:r.reminded_at||null}),
     shopping: r => ({id:r.id, title:r.title, addedAt:r.added_at, boughtAt:r.bought_at||null}),
     beach: r => ({id:r.id, title:r.title, grp:r.grp||'Other', sort:r.sort||0, packed:!!r.packed, addedAt:r.added_at}),
-    kids: r => ({id:r.id, name:r.name, color:r.color, sort:r.sort||0, shareToken:r.share_token, photoPath:r.photo_path||null}),
+    kids: r => ({id:r.id, name:r.name, color:r.color, sort:r.sort||0, shareToken:r.share_token, photoPath:r.photo_path||null, resetAt:r.reset_at||null}),
     kid_points: r => ({id:r.id, kidId:r.kid_id, kind:r.kind, delta:r.delta, createdAt:r.created_at}),
     notes: r => ({id:r.id, text:r.text, projectId:r.project_id||null, kind:r.kind==='fix'?'fix':'note', done:!!r.done, pinned:!!r.pinned, createdAt:r.created_at}),
     people: r => ({id:r.id, name:r.name, color:r.color, order:r.order||0, isMe:!!r.is_me}),
