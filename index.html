@@ -415,6 +415,7 @@ button.side:hover .ic{background:var(--orange)}
 .tools .laterbar.kidsbar .lic.kav{background:none;width:auto;padding:0 2px;display:flex;align-items:center}
 .kav i{position:relative;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:#fff;font:800 13px var(--f);font-style:normal;border:2px solid var(--surface);flex:none}
 .kav i+i{margin-left:-10px}
+.kav i{letter-spacing:-.02em}
 .kav i img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
 .kav i b{position:absolute;right:-5px;bottom:-5px}
 .kidsbar small .kup{color:#2FA66A}.kidsbar small .kdown{color:var(--danger)}
@@ -838,7 +839,7 @@ function renderTools(){
   h += `<button type="button" class="laterbar shoptool" data-shopping aria-label="Open shopping list"><span class="lic">${I.cart}</span><span class="ltxt"><b>Shopping list</b><small>${nShop ? nShop + ' to buy' : 'Nothing to buy'}</small></span><span class="lcount">${nShop}</span></button>`;
   const nFixOpen = notes.filter(x=>x.kind==='fix'&&!x.done).length, half = kids.length ? ' half' : ' beachbar';
   h += `<button type="button" class="laterbar notebar${half}" data-notes aria-label="Open notes"><span class="lic">${I.note}</span><span class="ltxt"><b>Notes</b><small>${notes.length ? notes.length + ' note' + (notes.length>1?'s':'') + (nFixOpen ? ' · ' + nFixOpen + ' to fix' : '') : (kids.length ? 'Quick thoughts' : 'Quick thoughts, no pressure')}</small></span>${kids.length ? '' : `<span class="lchev">${I.right}</span>`}</button>`;
-  if(kids.length) h += `<button type="button" class="laterbar kidsbar half" data-kids aria-label="Open kids game"><span class="lic kav">${allKids().map(k=>{ const sc = kidScore(k.id), ph = kidPhoto(k); return `<i style="background:${esc(k.color||'#3B82F6')}">${ph ? `<img src="${esc(ph)}" alt="">` : esc((k.name||'?').trim().charAt(0).toUpperCase())}<b>${window.PX ? PX.face(PX.mood(sc.yes, sc.no), 1.1) : ''}</b></i>`; }).join('')}</span><span class="ltxt"><b>Kids</b><small>${allKids().map(k=>{ const sc = kidScore(k.id), d = sc.yes - sc.no; return `<span class="${d>0?'kup':d<0?'kdown':''}">${d>0?'+':d<0?'−':''}${Math.abs(d)}</span>`; }).join(' · ')}</small></span></button>`;
+  if(kids.length) h += `<button type="button" class="laterbar kidsbar half" data-kids aria-label="Open kids game"><span class="lic kav">${allKids().map(k=>{ const sc = kidScore(k.id), ph = kidPhoto(k); return `<i style="background:${esc(k.color||'#3B82F6')}">${ph ? `<img src="${esc(ph)}" alt="">` : esc(kidInitial(k))}<b>${window.PX ? PX.face(PX.mood(sc.yes, sc.no), 1.1) : ''}</b></i>`; }).join('')}</span><span class="ltxt"><b>Kids</b><small>${allKids().map(k=>{ const sc = kidScore(k.id), d = sc.yes - sc.no; return `<span class="${d>0?'kup':d<0?'kdown':''}">${d>0?'+':d<0?'−':''}${Math.abs(d)}</span>`; }).join(' · ')}</small></span></button>`;
   h += renderBeach();
   h += `</div>`;
   return h + `</div></div>`;
@@ -901,6 +902,8 @@ function noteToTask(id){
   del('notes', id);
   toast('Made a task for today', 'Undo', () => { del('tasks', tid); put('notes', snap.id, strip(snap)); });
 }
+// One letter, or two when another kid starts with the same letter (Ahmed / Amar -> Ah / Am).
+function kidInitial(k){ const n = (k.name||'?').trim(), c = n.charAt(0).toUpperCase(); return kids.some(x=>x.id!==k.id && (x.name||'').trim().charAt(0).toUpperCase()===c) ? c + n.charAt(1).toLowerCase() : c; }
 const allKids = () => [...kids].sort((a,b)=>(a.sort||0)-(b.sort||0) || a.name.localeCompare(b.name));
 function kidWeekStart(){ const t = today(); return sydMs(addDays(t, -parse(t).getDay()), '00:00'); }
 function kidScore(id){
