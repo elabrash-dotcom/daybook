@@ -943,18 +943,18 @@ function kidAdd(id, kind, delta){
   toast(delta>0 ? `${k.name} +1 ${kind}` : `Used one of ${k.name}'s ${kind==='yes'?'YES':'NO'} points`, 'Undo', () => del('kid_points', pid));
 }
 const kidPhotoUrls = {};
+// Photos come from the on-device cache when we have them; otherwise one download via a signed link.
 function kidPhoto(k){
   if(!k.photoPath) return null;
-  const c = kidPhotoUrls[k.photoPath];
-  if(c && c.url && c.exp > Date.now()) return c.url;
-  if(!c || (!c.pending && c.exp <= Date.now())){
-    kidPhotoUrls[k.photoPath] = {pending:true, url:c && c.url, exp:0};
-    sb.storage.from('kid-photos').createSignedUrl(k.photoPath, 3600).then(({data}) => {
-      kidPhotoUrls[k.photoPath] = {url:data && data.signedUrl, exp:Date.now() + 50*60e3};
-      if(data && data.signedUrl) render();
-    }).catch(() => { delete kidPhotoUrls[k.photoPath]; });
+  const v = kidPhotoUrls[k.photoPath];
+  if(v && v !== 'pending') return v;
+  if(!v){
+    kidPhotoUrls[k.photoPath] = 'pending';
+    PX.photo(k.photoPath, () => sb.storage.from('kid-photos').createSignedUrl(k.photoPath, 3600).then(({data}) => data && data.signedUrl))
+      .then(u => { if(u){ kidPhotoUrls[k.photoPath] = u; render(); } else delete kidPhotoUrls[k.photoPath]; })
+      .catch(() => { delete kidPhotoUrls[k.photoPath]; });
   }
-  return c && c.url || null;
+  return null;
 }
 function kidPhotoSheet(id){
   const k = kids.find(x=>x.id===id); if(!k) return;
@@ -1026,7 +1026,8 @@ async function kidPhotoSave(k, blob){
   const {error} = await sb.from('kids').update({photo_path:path}).eq('id', k.id);
   if(error){ sb.storage.from('kid-photos').remove([path]); throw error; }
   const old = k.photoPath; k.photoPath = path;
-  kidPhotoUrls[path] = {url:URL.createObjectURL(blob), exp:Date.now() + 50*60e3};
+  kidPhotoUrls[path] = PX.photoPut(path, blob);
+  PX.photoPrune(kids.map(x=>x.photoPath).filter(Boolean));
   render();
   if(old) sb.storage.from('kid-photos').remove([old]);
 }
@@ -1035,6 +1036,7 @@ async function kidPhotoRemove(k){
   const {error} = await sb.from('kids').update({photo_path:null}).eq('id', k.id);
   if(error){ toast('Couldn’t remove the photo. Check your connection.'); return; }
   k.photoPath = null; closeSheet(); render(); toast(k.name + "'s photo removed");
+  PX.photoPrune(kids.map(x=>x.photoPath).filter(Boolean));
   sb.storage.from('kid-photos').remove([old]);
 }
 function kidResetSheet(){

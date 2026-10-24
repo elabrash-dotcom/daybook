@@ -107,12 +107,19 @@ body{background:linear-gradient(#6EC6FF,#A9DEFF 65%);color:var(--ink);font-famil
     if(!/^[a-f0-9]{64}$/.test(k)){ root.innerHTML = '<div class="msg">THIS LINK<br>DOESN’T WORK.<br>ASK DAD FOR<br>A NEW ONE.</div>'; return; }
     fetch(FN + '?k=' + encodeURIComponent(k), {cache:'no-store'}).then(function(r){ return r.json().then(function(j){ return {ok:r.ok, j:j}; }); }).then(function(res){
       if(!res.ok){ root.innerHTML = '<div class="msg">THIS LINK<br>DOESN’T WORK.<br>ASK DAD FOR<br>A NEW ONE.</div>'; return; }
-      var d = res.j, anim = null;
-      if(last){ if(d.kid.yes > last.yes) anim = 'yes'; else if(d.kid.no > last.no) anim = 'no'; }
-      if(!last || anim || d.kid.yes !== last.yes || d.kid.no !== last.no || sig(d) !== last.sig) draw(d, anim);
-      if(anim) PX.sfx(anim === 'yes' ? 'coin' : 'bonk');
-      last = {yes:d.kid.yes, no:d.kid.no, sig:sig(d)};
+      var d = res.j;
+      var all = [d.kid].concat(d.others || []);
+      // Swap each signed link for the on-device cached copy (downloaded only once per photo).
+      return Promise.all(all.map(function(o){ return PX.photo(o.photo_key, function(){ return o.photo; }).then(function(u){ o.photo = u; }); }))
+        .then(function(){ PX.photoPrune(all.map(function(o){ return o.photo_key; }).filter(Boolean)); show(d); });
     }).catch(function(){ if(!last) root.innerHTML = '<div class="msg">NO INTERNET.<br>TRY AGAIN SOON.</div>'; });
+  }
+  function show(d){
+    var anim = null;
+    if(last){ if(d.kid.yes > last.yes) anim = 'yes'; else if(d.kid.no > last.no) anim = 'no'; }
+    if(!last || anim || d.kid.yes !== last.yes || d.kid.no !== last.no || sig(d) !== last.sig) draw(d, anim);
+    if(anim) PX.sfx(anim === 'yes' ? 'coin' : 'bonk');
+    last = {yes:d.kid.yes, no:d.kid.no, sig:sig(d)};
   }
   document.addEventListener('pointerdown', function(){ PX.unlock(); }, {once:true});
   document.addEventListener('visibilitychange', function(){ if(!document.hidden) load(); });

@@ -24,7 +24,36 @@
     else if(kind === 'bonk'){ var o = tone(a, 220, t, .25, 'square', .1); o.frequency.exponentialRampToValueAtTime(90, t + .25); }
     else if(kind === 'use'){ tone(a, 660, t, .07, 'triangle', .1); tone(a, 440, t + .07, .14, 'triangle', .1); }
   }
+  // Kid photos are cached on the device by their storage path. Each upload gets a new path,
+  // so a cached copy never goes stale and is only downloaded once.
+  var PHOTO_CACHE = 'daybook-kid-photos', photoMem = {};
+  var hasCaches = typeof caches !== 'undefined';
+  var photoReq = function(key){ return new Request('/__kidphoto/' + encodeURIComponent(key)); };
+  function photoPut(key, blob){
+    photoMem[key] = URL.createObjectURL(blob);
+    if(hasCaches) caches.open(PHOTO_CACHE).then(function(c){ return c.put(photoReq(key), new Response(blob, {headers:{'Content-Type': blob.type || 'image/jpeg'}})); }).catch(function(){});
+    return photoMem[key];
+  }
+  function photo(key, getUrl){
+    if(!key) return Promise.resolve(null);
+    if(photoMem[key]) return Promise.resolve(photoMem[key]);
+    var cached = hasCaches ? caches.open(PHOTO_CACHE).then(function(c){ return c.match(photoReq(key)); }).then(function(r){ return r ? r.blob() : null; }).catch(function(){ return null; }) : Promise.resolve(null);
+    return cached.then(function(blob){
+      if(blob){ photoMem[key] = URL.createObjectURL(blob); return photoMem[key]; }
+      return Promise.resolve(getUrl()).then(function(u){
+        if(!u) return null;
+        return fetch(u).then(function(r){ if(!r.ok) throw new Error('photo ' + r.status); return r.blob(); })
+          .then(function(b){ return photoPut(key, b); })
+          .catch(function(){ return u; });
+      });
+    });
+  }
+  function photoPrune(keep){
+    if(!hasCaches) return;
+    caches.open(PHOTO_CACHE).then(function(c){ return c.keys().then(function(ks){ ks.forEach(function(r){ var k = decodeURIComponent((r.url.split('/__kidphoto/')[1]) || ''); if(keep.indexOf(k) < 0) c.delete(r); }); }); }).catch(function(){});
+  }
   window.PX = {
+    photo: photo, photoPut: photoPut, photoPrune: photoPrune,
     // Faces are emoji (clearer than pixel art); s keeps the old pixel-scale sizing (12px per step).
     face: function(m, s){ return '<span class="emo" role="img" aria-label="' + (MOOD_TEXT[m] || '') + '" style="display:block;font-size:' + Math.round(11 * (s || 4)) + 'px;line-height:1;font-family:\'Apple Color Emoji\',\'Segoe UI Emoji\',\'Noto Color Emoji\',sans-serif">' + (EMOJI[m] || EMOJI.meh) + '</span>'; },
     // Yes/No counters are emoji too, matching the YES/NO buttons; s keeps the old sizing (8px per step).
