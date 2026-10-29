@@ -458,7 +458,13 @@ button.side:hover .ic{background:var(--orange)}
 .calround svg{width:20px;height:20px}
 .calyr{display:flex;align-items:center;gap:6px;background:var(--surface);border-radius:999px;padding:4px;box-shadow:var(--shadow)}
 .calyr .calround{width:40px;height:40px;box-shadow:none;background:var(--soft)}
-.calyr b{font-size:22px;font-weight:800;min-width:66px;text-align:center;font-variant-numeric:tabular-nums}
+.calyr b{font-size:19px;font-weight:800;min-width:150px;text-align:center;line-height:1.1;display:flex;flex-direction:column;align-items:center}
+.calyr b.cur{color:var(--danger)}
+.calyr b span{font-size:12px;font-weight:700;color:var(--ink-3)}
+.calm.one{margin-top:4px;touch-action:pan-y}
+.calsum{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.calsum span{display:flex;align-items:center;gap:6px;background:var(--surface);border-radius:999px;padding:8px 12px;font-size:13px;font-weight:800;box-shadow:var(--shadow)}
+.calsum i{width:10px;height:10px;border-radius:50%}
 .calbar .calleg{margin-top:0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
 .calbar .calleg::-webkit-scrollbar{display:none}
 .calbar .calchip{flex:none;box-shadow:none}
@@ -742,7 +748,7 @@ const I = {
 };
 
 let db = null, synced = null;
-let people = [], projects = [], tasks = [], shop = [], shopQ = '', shEditId = null, beach = [], notes = [], marks = [], markLabels = [], calScroll = false, calYear = null, kids = [], kidPts = [], kAnim = null, nProj = null, nFix = false, nQ = '', nShowFixed = false, nEditId = null, nFocus = false, bAddGrp = null, bConfirm = false, bMoveId = null, bQuick = null, bQFocus = false, bIFocus = false;
+let people = [], projects = [], tasks = [], shop = [], shopQ = '', shEditId = null, beach = [], notes = [], marks = [], markLabels = [], calScroll = false, calMonth = null, kids = [], kidPts = [], kAnim = null, nProj = null, nFix = false, nQ = '', nShowFixed = false, nEditId = null, nFocus = false, bAddGrp = null, bConfirm = false, bMoveId = null, bQuick = null, bQFocus = false, bIFocus = false;
 let sel = null;          // selected date
 let filter = {personId:null, projectId:null};   // independent facets, either or both may be set
 let mode = 'day';        // day | history
@@ -1174,43 +1180,43 @@ function renderCalendar(){
   const t0 = today(), labels = allMarkLabels();
   const byDate = {};
   marks.forEach(m => { const l = markLabels.find(x=>x.id===m.labelId); if(l) (byDate[m.date] = byDate[m.date] || []).push(l); });
-  const yr = calYear || +t0.slice(0,4);
-  // Sticky bar: Back, year switcher, colours, legend and weekday row always stay on screen.
+  const key = calMonth || t0.slice(0,7), yr = +key.slice(0,4), mo = +key.slice(5,7) - 1;
+  const first = new Date(yr, mo, 1), days = new Date(yr, mo+1, 0).getDate(), lead = (first.getDay()+6)%7;
+  const title = first.toLocaleDateString('en-AU',{month:'long'});
+  // One month at a time: the arrows (or a sideways swipe) move to the previous / next month.
   let h = `<div class="calbar">
     <div class="calnav"><button type="button" class="calround" data-back aria-label="Back">${I.left}</button>
-      <div class="calyr"><button type="button" class="calround" data-calyear="-1" aria-label="Previous year">${I.left}</button><b>${yr}</b><button type="button" class="calround" data-calyear="1" aria-label="Next year">${I.right}</button></div>
+      <div class="calyr"><button type="button" class="calround" data-calmonth="-1" aria-label="Previous month">${I.left}</button><b class="${key===t0.slice(0,7)?'cur':''}">${title}<span>${yr}</span></b><button type="button" class="calround" data-calmonth="1" aria-label="Next month">${I.right}</button></div>
       <button type="button" class="calround wide" data-calcolors aria-label="Colours">🎨</button></div>
     ${labels.length ? `<div class="calleg">${labels.map(l=>`<span class="calchip"><i style="background:${esc(l.color)}"></i>${esc(l.name)}</span>`).join('')}</div>`
       : `<button type="button" class="calempty" data-calcolors>🎨 Add your first colour, for example <b style="color:#E0473A">Red = Pay day</b>. Then tap any day to mark it.</button>`}
     <div class="calwk">${['M','Tu','W','Th','F','Sa','Su'].map(d=>`<span>${d}</span>`).join('')}</div>
   </div>`;
-  h += `<button type="button" class="caltodayfab" data-caltoday>Today</button>`;
-  for(let mo=0; mo<12; mo++){
-    const first = new Date(yr, mo, 1);
-    const days = new Date(yr, mo+1, 0).getDate();
-    const key = yr + '-' + pad(mo+1), lead = (first.getDay()+6)%7;
-    h += `<section class="calm${key===t0.slice(0,7)?' cur':''}" id="cm-${key}">${calTitle(first, lead, false)}<div class="mgrid">`;
-    for(let i=0;i<lead;i++) h += '<span></span>';
-    for(let d=1; d<=days; d++){
-      const ds = key + '-' + pad(d), hj = hijri(ds), ls = byDate[ds] || [];
-      h += `<button type="button" class="cday${ds===t0?' today':''}" data-cday="${ds}"><span class="cnum"><b>${d}</b><small class="${hj.first?'hm':''}">${esc(hj.label)}</small></span><span class="cdots">${ls.slice(0,4).map(l=>`<i style="background:${esc(l.color)}"></i>`).join('')}</span></button>`;
-    }
-    h += '</div></section>';
+  if(key !== t0.slice(0,7)) h += `<button type="button" class="caltodayfab" data-caltoday>Today</button>`;
+  h += `<section class="calm one" id="calMonthView"><div class="mgrid">`;
+  for(let i=0;i<lead;i++) h += '<span></span>';
+  for(let d=1; d<=days; d++){
+    const ds = key + '-' + pad(d), hj = hijri(ds), ls = byDate[ds] || [];
+    h += `<button type="button" class="cday${ds===t0?' today':''}" data-cday="${ds}"><span class="cnum"><b>${d}</b><small class="${hj.first?'hm':''}">${esc(hj.label)}</small></span><span class="cdots">${ls.slice(0,4).map(l=>`<i style="background:${esc(l.color)}"></i>`).join('')}</span></button>`;
   }
+  h += '</div></section>';
+  const inMonth = labels.map(l => ({l, n: marks.filter(m=>m.labelId===l.id && m.date.startsWith(key)).length})).filter(x=>x.n);
+  if(inMonth.length) h += `<div class="calsum">${inMonth.map(x=>`<span><i style="background:${esc(x.l.color)}"></i>${esc(x.l.name)} · ${x.n} day${x.n===1?'':'s'}</span>`).join('')}</div>`;
   return h + `<div style="height:110px"></div>`;
 }
-// Short month name over the column of the 1st (Apple style); if it would run off the edge, end it at the right edge instead.
-function calTitle(first, lead, withYear){
-  const name = first.toLocaleDateString('en-AU',{month:'short'}).replace('.','');
-  const yr = withYear ? `<span>${first.getFullYear()}</span>` : '';
-  const room = 7 - lead, need = withYear ? 3 : 2;
-  return room >= need ? `<h4 style="padding-left:calc(${lead} * 100% / 7)">${name}${yr}</h4>` : `<h4 style="text-align:right">${name}${yr}</h4>`;
+function calShift(n){
+  const key = calMonth || today().slice(0,7), d = new Date(+key.slice(0,4), +key.slice(5,7) - 1 + n, 1);
+  calMonth = d.getFullYear() + '-' + pad(d.getMonth()+1); render();
 }
-// Scroll so a month's title sits just under the sticky bar.
-function calJump(key){
-  const el = document.getElementById('cm-' + key), bar = document.querySelector('.calbar');
-  if(!el){ window.scrollTo(0,0); return; }
-  window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - (bar ? bar.offsetHeight : 0) + 4);
+// Swipe the month left / right to change month (like the arrows).
+function calSwipe(){
+  const el = document.getElementById('calMonthView'); if(!el) return;
+  let x0 = null, y0 = 0;
+  el.addEventListener('touchstart', e => { if(e.touches.length===1){ x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; } }, {passive:true});
+  el.addEventListener('touchend', e => {
+    if(x0 === null) return; const t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0; x0 = null;
+    if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) calShift(dx < 0 ? 1 : -1);
+  }, {passive:true});
 }
 function calDaySheet(ds){
   const root = $('#sheetRoot');
@@ -1532,7 +1538,8 @@ function render(){
   if(kp){ $('#rest').innerHTML = renderKids(); return; }
   if(cp){
     $('#rest').innerHTML = renderCalendar();
-    if(calScroll){ calScroll = false; calJump(today().slice(0,7)); }
+    if(calScroll){ calScroll = false; window.scrollTo(0,0); }
+    calSwipe();
     return;
   }
   if(np){
@@ -2071,9 +2078,9 @@ $('#app').addEventListener('click', e => {
   else if('shopping' in b.dataset){ mode='shopping'; render(); window.scrollTo({top:0}); }
   else if('shopback' in b.dataset){ mode='shopping'; render(); window.scrollTo({top:0}); }
   else if('shhist' in b.dataset){ mode='shophist'; shopQ=''; render(); window.scrollTo({top:0}); }
-  else if('cal' in b.dataset){ mode='calendar'; calYear = null; calScroll = true; render(); }
-  else if('caltoday' in b.dataset){ const t = today(); if(calYear && calYear !== +t.slice(0,4)){ calYear = null; render(); } calJump(t.slice(0,7)); }
-  else if(b.dataset.calyear){ calYear = (calYear || +today().slice(0,4)) + (+b.dataset.calyear); render(); window.scrollTo(0,0); }
+  else if('cal' in b.dataset){ mode='calendar'; calMonth = null; calScroll = true; render(); }
+  else if('caltoday' in b.dataset){ calMonth = null; render(); }
+  else if(b.dataset.calmonth){ calShift(+b.dataset.calmonth); }
   else if('calcolors' in b.dataset){ calColorsSheet(); }
   else if(b.dataset.cday){ calDaySheet(b.dataset.cday); }
   else if('kids' in b.dataset){ if(window.PX) PX.unlock(); mode='kids'; render(); window.scrollTo({top:0}); }
