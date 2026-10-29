@@ -452,24 +452,29 @@ button.side:hover .ic{background:var(--orange)}
 .caltool .lic{background:#FDE3E0;color:#E0473A}
 .calbtn{border:0;background:var(--surface);color:var(--ink);border-radius:999px;padding:9px 14px;font:inherit;font-weight:800;font-size:13.5px;box-shadow:var(--shadow);min-height:40px}
 .head .calbtn:first-of-type{margin-left:auto}
+.caltodayfab{position:fixed;left:max(16px, calc(50% - 304px));bottom:calc(22px + env(safe-area-inset-bottom,0px));z-index:30;border:0;border-radius:999px;padding:0 22px;height:52px;font:inherit;font-weight:800;font-size:17px;color:var(--ink);background:color-mix(in srgb, var(--surface) 82%, transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:0 6px 20px rgba(0,0,0,.14)}
 .calleg{display:flex;flex-wrap:wrap;gap:8px;margin-top:-6px}
 .calchip{display:flex;align-items:center;gap:6px;background:var(--surface);border-radius:999px;padding:6px 11px;font-size:13px;font-weight:800;box-shadow:var(--shadow)}
 .calchip i{width:10px;height:10px;border-radius:50%}
 .calempty{border:2px dashed var(--line);background:none;border-radius:18px;padding:14px;font:inherit;font-weight:700;font-size:14px;color:var(--ink-2);text-align:left;line-height:1.4}
-.calwk{position:sticky;top:0;z-index:5;display:grid;grid-template-columns:repeat(7,1fr);background:var(--bg);padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;font-weight:800;text-align:center;color:var(--ink)}
-.calwk .we{color:var(--ink-3)}
-.calm h4{margin:18px 4px 6px;font-size:22px;font-weight:800}
-.calm:has(.today) h4{color:var(--danger)}
-.mgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
-.cday{min-width:0;border:0;background:none;padding:8px 0 6px;display:flex;flex-direction:column;align-items:center;gap:1px;font:inherit;color:var(--ink);min-height:64px;border-top:1px solid var(--line);border-radius:0}
+.calwk{position:sticky;top:0;z-index:5;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));background:var(--bg);padding:10px 0 8px;margin:0 -4px;border-bottom:1px solid var(--line);font-size:14px;font-weight:700;text-align:center;color:var(--ink-2);letter-spacing:.02em}
+.calm{margin-top:6px}
+.calm h4{margin:22px 0 10px;font-size:30px;font-weight:800;letter-spacing:-.01em;white-space:nowrap;line-height:1}
+.calm.cur h4{color:var(--danger)}
+.calm h4 span{font-weight:700;color:var(--ink-3);font-size:20px;margin-left:6px}
+.mgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));margin:0 -4px}
 .mgrid > span{border-top:1px solid transparent}
-.cday b{font-size:20px;font-weight:800;line-height:1.15;width:36px;height:30px;display:grid;place-items:center;border-radius:999px}
-.cday small{font-size:11px;font-weight:700;color:var(--ink-2);line-height:1.2;max-width:100%;overflow:hidden;white-space:nowrap}
-.cday small.hm{color:var(--danger);font-size:10px}
-.cday.we b,.cday.we small{color:var(--ink-3)}
-.cday.today b{background:var(--danger);color:#fff}
-.cdots{display:flex;gap:3px;height:8px;align-items:center}
-.cdots i{width:8px;height:8px;border-radius:50%}
+.cday{min-width:0;border:0;background:none;padding:10px 0 8px;display:flex;flex-direction:column;align-items:center;gap:4px;font:inherit;color:var(--ink);min-height:86px;border-top:1px solid var(--line);border-radius:0;-webkit-tap-highlight-color:transparent}
+.cnum{width:54px;height:54px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;transition:background .15s}
+.cnum b{font-size:25px;font-weight:700;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.cnum small{font-size:13px;font-weight:600;line-height:1;color:var(--ink-2);white-space:nowrap}
+.cnum small.hm{color:var(--danger);font-size:11.5px;font-weight:700;text-decoration:underline;text-decoration-color:var(--danger);text-underline-offset:3px;position:relative;z-index:1}
+.cday:active .cnum{background:var(--soft)}
+.cday.today .cnum{background:var(--danger);box-shadow:0 4px 12px rgba(224,71,58,.35)}
+.cday.today .cnum b,.cday.today .cnum small{color:#fff;text-decoration-color:#fff}
+.cdots{display:flex;gap:4px;height:9px;align-items:center}
+.cdots i{width:9px;height:9px;border-radius:50%}
+.calmore{text-align:center;font-size:13px;font-weight:700;color:var(--ink-3);padding:18px 0}
 .calhj{display:block;font-size:13px;font-weight:700;color:var(--ink-2);margin-top:2px}
 .calopts{display:flex;flex-direction:column;gap:8px;margin-top:12px}
 .calopt{display:flex;align-items:center;gap:12px;width:100%;border:2px solid transparent;background:var(--soft);border-radius:16px;padding:14px;font:inherit;font-weight:800;font-size:16px;color:var(--ink);text-align:left}
@@ -726,7 +731,7 @@ const I = {
 };
 
 let db = null, synced = null;
-let people = [], projects = [], tasks = [], shop = [], shopQ = '', shEditId = null, beach = [], notes = [], marks = [], markLabels = [], calScroll = false, kids = [], kidPts = [], kAnim = null, nProj = null, nFix = false, nQ = '', nShowFixed = false, nEditId = null, nFocus = false, bAddGrp = null, bConfirm = false, bMoveId = null, bQuick = null, bQFocus = false, bIFocus = false;
+let people = [], projects = [], tasks = [], shop = [], shopQ = '', shEditId = null, beach = [], notes = [], marks = [], markLabels = [], calScroll = false, calFrom = -6, calTo = 18, calObs = null, calPause = 0, kids = [], kidPts = [], kAnim = null, nProj = null, nFix = false, nQ = '', nShowFixed = false, nEditId = null, nFocus = false, bAddGrp = null, bConfirm = false, bMoveId = null, bQuick = null, bQFocus = false, bIFocus = false;
 let sel = null;          // selected date
 let filter = {personId:null, projectId:null};   // independent facets, either or both may be set
 let mode = 'day';        // day | history
@@ -1158,24 +1163,53 @@ function renderCalendar(){
   const t0 = today(), labels = allMarkLabels();
   const byDate = {};
   marks.forEach(m => { const l = markLabels.find(x=>x.id===m.labelId); if(l) (byDate[m.date] = byDate[m.date] || []).push(l); });
-  let h = `<button class="back" data-back>${I.left}Back</button><div class="head"><h3 style="font-size:28px">Calendar</h3><button type="button" class="calbtn" data-caltoday>Today</button><button type="button" class="calbtn" data-calcolors>🎨 Colours</button></div>`;
+  let h = `<button class="back" data-back>${I.left}Back</button><div class="head"><h3 style="font-size:28px">Calendar</h3><button type="button" class="calbtn" data-calcolors>🎨 Colours</button></div><button type="button" class="caltodayfab" data-caltoday>Today</button>`;
   h += labels.length ? `<div class="calleg">${labels.map(l=>`<span class="calchip"><i style="background:${esc(l.color)}"></i>${esc(l.name)}</span>`).join('')}</div>`
     : `<button type="button" class="calempty" data-calcolors>🎨 Add your first colour, for example <b style="color:#E0473A">Red = Pay day</b>. Then tap any day to mark it.</button>`;
-  h += `<div class="calwk">${['M','Tu','W','Th','F','Sa','Su'].map((d,i)=>`<span${i>4?' class="we"':''}>${d}</span>`).join('')}</div>`;
+  h += `<div class="calwk">${['M','Tu','W','Th','F','Sa','Su'].map(d=>`<span>${d}</span>`).join('')}</div>`;
+  h += `<div id="calTop" class="calmore">Scroll up for earlier months</div>`;
   const base = parse(t0); base.setDate(1);
-  for(let mi=-3; mi<=12; mi++){
+  for(let mi=calFrom; mi<=calTo; mi++){
     const first = new Date(base.getFullYear(), base.getMonth()+mi, 1);
     const days = new Date(first.getFullYear(), first.getMonth()+1, 0).getDate();
-    const key = first.getFullYear() + '-' + pad(first.getMonth()+1);
-    h += `<section class="calm" id="cm-${key}"><h4>${first.toLocaleDateString('en-AU',{month:'long'})}${first.getFullYear()!==base.getFullYear()?' '+first.getFullYear():''}</h4><div class="mgrid">`;
-    for(let i=0;i<(first.getDay()+6)%7;i++) h += '<span></span>';
+    const key = first.getFullYear() + '-' + pad(first.getMonth()+1), lead = (first.getDay()+6)%7;
+    // Month name sits above the column of the 1st, like Apple Calendar.
+    h += `<section class="calm${mi===0?' cur':''}" id="cm-${key}">${calTitle(first, lead, first.getMonth()===0 || first.getFullYear()!==base.getFullYear())}<div class="mgrid">`;
+    for(let i=0;i<lead;i++) h += '<span></span>';
     for(let d=1; d<=days; d++){
-      const ds = key + '-' + pad(d), dow = (new Date(first.getFullYear(), first.getMonth(), d).getDay()+6)%7, hj = hijri(ds), ls = byDate[ds] || [];
-      h += `<button type="button" class="cday${ds===t0?' today':''}${dow>4?' we':''}" data-cday="${ds}"><b>${d}</b><small class="${hj.first?'hm':''}">${esc(hj.label)}</small><span class="cdots">${ls.slice(0,4).map(l=>`<i style="background:${esc(l.color)}"></i>`).join('')}</span></button>`;
+      const ds = key + '-' + pad(d), hj = hijri(ds), ls = byDate[ds] || [];
+      h += `<button type="button" class="cday${ds===t0?' today':''}" data-cday="${ds}"><span class="cnum"><b>${d}</b><small class="${hj.first?'hm':''}">${esc(hj.label)}</small></span><span class="cdots">${ls.slice(0,4).map(l=>`<i style="background:${esc(l.color)}"></i>`).join('')}</span></button>`;
     }
     h += '</div></section>';
   }
-  return h + '<div style="height:96px"></div>';
+  return h + `<div id="calBottom" class="calmore">Loading more…</div><div style="height:80px"></div>`;
+}
+// Short month name over the column of the 1st (Apple style); if it would run off the edge, end it at the right edge instead.
+function calTitle(first, lead, withYear){
+  const name = first.toLocaleDateString('en-AU',{month:'short'}).replace('.','');
+  const yr = withYear ? `<span>${first.getFullYear()}</span>` : '';
+  const room = 7 - lead, need = withYear ? 3 : 2;
+  return room >= need ? `<h4 style="padding-left:calc(${lead} * 100% / 7)">${name}${yr}</h4>` : `<h4 style="text-align:right">${name}${yr}</h4>`;
+}
+// Endless months: load another year when either end of the list scrolls into view (up to 50 years each way).
+function calWatch(){
+  if(calObs) calObs.disconnect();
+  if(typeof IntersectionObserver === 'undefined') return;
+  let armed = false; setTimeout(() => { armed = true; }, 400);
+  calObs = new IntersectionObserver(entries => {
+    if(!armed || mode !== 'calendar' || Date.now() < calPause) return;
+    for(const e of entries){
+      if(!e.isIntersecting) continue;
+      if(e.target.id === 'calBottom' && calTo < 600){ calTo += 12; render(); return; }
+      if(e.target.id === 'calTop' && calFrom > -600){
+        const before = document.documentElement.scrollHeight, y = window.scrollY;
+        calFrom -= 12; render();
+        window.scrollTo(0, y + document.documentElement.scrollHeight - before);
+        return;
+      }
+    }
+  }, {rootMargin:'600px 0px'});
+  ['calTop','calBottom'].forEach(id => { const el = document.getElementById(id); if(el) calObs.observe(el); });
 }
 function calDaySheet(ds){
   const root = $('#sheetRoot');
@@ -1495,7 +1529,12 @@ function render(){
   if(lt){ $('#rest').innerHTML = renderLater(); return; }
   if(sp){ const had = document.activeElement && document.activeElement.id==='shInput'; $('#rest').innerHTML = renderShopping(); if(had) $('#shInput').focus(); const ei=document.querySelector('.shedit'); if(ei){ ei.focus(); ei.select(); } return; }
   if(kp){ $('#rest').innerHTML = renderKids(); return; }
-  if(cp){ $('#rest').innerHTML = renderCalendar(); if(calScroll){ calScroll = false; const t = today(); const el = document.getElementById('cm-' + t.slice(0,7)); if(el) el.scrollIntoView({block:'start'}); } return; }
+  if(cp){
+    $('#rest').innerHTML = renderCalendar();
+    if(calScroll){ calScroll = false; const el = document.getElementById('cm-' + today().slice(0,7)); if(el) el.scrollIntoView({block:'start'}); }
+    calWatch();
+    return;
+  }
   if(np){
     const a = document.activeElement; const hadN = a && a.id==='nInput'; const vN = hadN ? a.value : ''; const ei = a && a.classList && a.classList.contains('nedit');
     $('#rest').innerHTML = renderNotes();
@@ -2032,8 +2071,8 @@ $('#app').addEventListener('click', e => {
   else if('shopping' in b.dataset){ mode='shopping'; render(); window.scrollTo({top:0}); }
   else if('shopback' in b.dataset){ mode='shopping'; render(); window.scrollTo({top:0}); }
   else if('shhist' in b.dataset){ mode='shophist'; shopQ=''; render(); window.scrollTo({top:0}); }
-  else if('cal' in b.dataset){ mode='calendar'; calScroll = true; render(); }
-  else if('caltoday' in b.dataset){ const el = document.getElementById('cm-' + today().slice(0,7)); if(el) el.scrollIntoView({block:'start', behavior:'smooth'}); }
+  else if('cal' in b.dataset){ mode='calendar'; calFrom = -6; calTo = 18; calScroll = true; render(); }
+  else if('caltoday' in b.dataset){ calPause = Date.now() + 1000; const el = document.getElementById('cm-' + today().slice(0,7)); if(el) el.scrollIntoView({block:'start'}); }
   else if('calcolors' in b.dataset){ calColorsSheet(); }
   else if(b.dataset.cday){ calDaySheet(b.dataset.cday); }
   else if('kids' in b.dataset){ if(window.PX) PX.unlock(); mode='kids'; render(); window.scrollTo({top:0}); }
