@@ -40,7 +40,7 @@ body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area
 :root[data-theme="dark"] body::before{background:var(--bg)}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--rem:#FF7A93;--rem-soft:#34171E;--rem-ink:#2A0C13}}
 :root[data-theme="dark"]{--rem:#FF7A93;--rem-soft:#34171E;--rem-ink:#2A0C13}
-body{min-height:100%;max-width:100%;overflow-x:hidden;touch-action:manipulation;background:transparent;color:var(--ink);font:500 16px/1.4 var(--f);-webkit-tap-highlight-color:transparent}
+body{min-height:100%;max-width:100%;overflow-x:hidden;overflow-x:clip;touch-action:manipulation;background:transparent;color:var(--ink);font:500 16px/1.4 var(--f);-webkit-tap-highlight-color:transparent}
 button,input,textarea{font:inherit;color:inherit}
 button{cursor:pointer;border:0;background:none;padding:0}
 :focus-visible{outline:3px solid var(--orange);outline-offset:2px;border-radius:12px}
@@ -452,6 +452,17 @@ button.side:hover .ic{background:var(--orange)}
 .caltool .lic{background:#FDE3E0;color:#E0473A}
 .calbtn{border:0;background:var(--surface);color:var(--ink);border-radius:999px;padding:9px 14px;font:inherit;font-weight:800;font-size:13.5px;box-shadow:var(--shadow);min-height:40px}
 .head .calbtn:first-of-type{margin-left:auto}
+.calbar{position:sticky;top:0;z-index:20;margin:calc(-22px - env(safe-area-inset-top,0px)) -20px 0;padding:calc(12px + env(safe-area-inset-top,0px)) 20px 0;background:color-mix(in srgb, var(--bg) 88%, transparent);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);display:flex;flex-direction:column;gap:10px}
+.calnav{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.calround{width:46px;height:46px;border-radius:50%;border:0;background:var(--surface);color:var(--ink);display:grid;place-items:center;box-shadow:var(--shadow);font-size:20px;padding:0}
+.calround svg{width:20px;height:20px}
+.calyr{display:flex;align-items:center;gap:6px;background:var(--surface);border-radius:999px;padding:4px;box-shadow:var(--shadow)}
+.calyr .calround{width:40px;height:40px;box-shadow:none;background:var(--soft)}
+.calyr b{font-size:22px;font-weight:800;min-width:66px;text-align:center;font-variant-numeric:tabular-nums}
+.calbar .calleg{margin-top:0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.calbar .calleg::-webkit-scrollbar{display:none}
+.calbar .calchip{flex:none;box-shadow:none}
+.calbar .calwk{position:static;margin:0 -4px;background:none}
 .caltodayfab{position:fixed;left:max(16px, calc(50% - 304px));bottom:calc(22px + env(safe-area-inset-bottom,0px));z-index:30;border:0;border-radius:999px;padding:0 22px;height:52px;font:inherit;font-weight:800;font-size:17px;color:var(--ink);background:color-mix(in srgb, var(--surface) 82%, transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:0 6px 20px rgba(0,0,0,.14)}
 .calleg{display:flex;flex-wrap:wrap;gap:8px;margin-top:-6px}
 .calchip{display:flex;align-items:center;gap:6px;background:var(--surface);border-radius:999px;padding:6px 11px;font-size:13px;font-weight:800;box-shadow:var(--shadow)}
@@ -731,7 +742,7 @@ const I = {
 };
 
 let db = null, synced = null;
-let people = [], projects = [], tasks = [], shop = [], shopQ = '', shEditId = null, beach = [], notes = [], marks = [], markLabels = [], calScroll = false, calFrom = -6, calTo = 18, calObs = null, calPause = 0, kids = [], kidPts = [], kAnim = null, nProj = null, nFix = false, nQ = '', nShowFixed = false, nEditId = null, nFocus = false, bAddGrp = null, bConfirm = false, bMoveId = null, bQuick = null, bQFocus = false, bIFocus = false;
+let people = [], projects = [], tasks = [], shop = [], shopQ = '', shEditId = null, beach = [], notes = [], marks = [], markLabels = [], calScroll = false, calYear = null, kids = [], kidPts = [], kAnim = null, nProj = null, nFix = false, nQ = '', nShowFixed = false, nEditId = null, nFocus = false, bAddGrp = null, bConfirm = false, bMoveId = null, bQuick = null, bQFocus = false, bIFocus = false;
 let sel = null;          // selected date
 let filter = {personId:null, projectId:null};   // independent facets, either or both may be set
 let mode = 'day';        // day | history
@@ -1163,18 +1174,22 @@ function renderCalendar(){
   const t0 = today(), labels = allMarkLabels();
   const byDate = {};
   marks.forEach(m => { const l = markLabels.find(x=>x.id===m.labelId); if(l) (byDate[m.date] = byDate[m.date] || []).push(l); });
-  let h = `<button class="back" data-back>${I.left}Back</button><div class="head"><h3 style="font-size:28px">Calendar</h3><button type="button" class="calbtn" data-calcolors>🎨 Colours</button></div><button type="button" class="caltodayfab" data-caltoday>Today</button>`;
-  h += labels.length ? `<div class="calleg">${labels.map(l=>`<span class="calchip"><i style="background:${esc(l.color)}"></i>${esc(l.name)}</span>`).join('')}</div>`
-    : `<button type="button" class="calempty" data-calcolors>🎨 Add your first colour, for example <b style="color:#E0473A">Red = Pay day</b>. Then tap any day to mark it.</button>`;
-  h += `<div class="calwk">${['M','Tu','W','Th','F','Sa','Su'].map(d=>`<span>${d}</span>`).join('')}</div>`;
-  h += `<div id="calTop" class="calmore">Scroll up for earlier months</div>`;
-  const base = parse(t0); base.setDate(1);
-  for(let mi=calFrom; mi<=calTo; mi++){
-    const first = new Date(base.getFullYear(), base.getMonth()+mi, 1);
-    const days = new Date(first.getFullYear(), first.getMonth()+1, 0).getDate();
-    const key = first.getFullYear() + '-' + pad(first.getMonth()+1), lead = (first.getDay()+6)%7;
-    // Month name sits above the column of the 1st, like Apple Calendar.
-    h += `<section class="calm${mi===0?' cur':''}" id="cm-${key}">${calTitle(first, lead, first.getMonth()===0 || first.getFullYear()!==base.getFullYear())}<div class="mgrid">`;
+  const yr = calYear || +t0.slice(0,4);
+  // Sticky bar: Back, year switcher, colours, legend and weekday row always stay on screen.
+  let h = `<div class="calbar">
+    <div class="calnav"><button type="button" class="calround" data-back aria-label="Back">${I.left}</button>
+      <div class="calyr"><button type="button" class="calround" data-calyear="-1" aria-label="Previous year">${I.left}</button><b>${yr}</b><button type="button" class="calround" data-calyear="1" aria-label="Next year">${I.right}</button></div>
+      <button type="button" class="calround wide" data-calcolors aria-label="Colours">🎨</button></div>
+    ${labels.length ? `<div class="calleg">${labels.map(l=>`<span class="calchip"><i style="background:${esc(l.color)}"></i>${esc(l.name)}</span>`).join('')}</div>`
+      : `<button type="button" class="calempty" data-calcolors>🎨 Add your first colour, for example <b style="color:#E0473A">Red = Pay day</b>. Then tap any day to mark it.</button>`}
+    <div class="calwk">${['M','Tu','W','Th','F','Sa','Su'].map(d=>`<span>${d}</span>`).join('')}</div>
+  </div>`;
+  h += `<button type="button" class="caltodayfab" data-caltoday>Today</button>`;
+  for(let mo=0; mo<12; mo++){
+    const first = new Date(yr, mo, 1);
+    const days = new Date(yr, mo+1, 0).getDate();
+    const key = yr + '-' + pad(mo+1), lead = (first.getDay()+6)%7;
+    h += `<section class="calm${key===t0.slice(0,7)?' cur':''}" id="cm-${key}">${calTitle(first, lead, false)}<div class="mgrid">`;
     for(let i=0;i<lead;i++) h += '<span></span>';
     for(let d=1; d<=days; d++){
       const ds = key + '-' + pad(d), hj = hijri(ds), ls = byDate[ds] || [];
@@ -1182,7 +1197,7 @@ function renderCalendar(){
     }
     h += '</div></section>';
   }
-  return h + `<div id="calBottom" class="calmore">Loading more…</div><div style="height:80px"></div>`;
+  return h + `<div style="height:110px"></div>`;
 }
 // Short month name over the column of the 1st (Apple style); if it would run off the edge, end it at the right edge instead.
 function calTitle(first, lead, withYear){
@@ -1191,25 +1206,11 @@ function calTitle(first, lead, withYear){
   const room = 7 - lead, need = withYear ? 3 : 2;
   return room >= need ? `<h4 style="padding-left:calc(${lead} * 100% / 7)">${name}${yr}</h4>` : `<h4 style="text-align:right">${name}${yr}</h4>`;
 }
-// Endless months: load another year when either end of the list scrolls into view (up to 50 years each way).
-function calWatch(){
-  if(calObs) calObs.disconnect();
-  if(typeof IntersectionObserver === 'undefined') return;
-  let armed = false; setTimeout(() => { armed = true; }, 400);
-  calObs = new IntersectionObserver(entries => {
-    if(!armed || mode !== 'calendar' || Date.now() < calPause) return;
-    for(const e of entries){
-      if(!e.isIntersecting) continue;
-      if(e.target.id === 'calBottom' && calTo < 600){ calTo += 12; render(); return; }
-      if(e.target.id === 'calTop' && calFrom > -600){
-        const before = document.documentElement.scrollHeight, y = window.scrollY;
-        calFrom -= 12; render();
-        window.scrollTo(0, y + document.documentElement.scrollHeight - before);
-        return;
-      }
-    }
-  }, {rootMargin:'600px 0px'});
-  ['calTop','calBottom'].forEach(id => { const el = document.getElementById(id); if(el) calObs.observe(el); });
+// Scroll so a month's title sits just under the sticky bar.
+function calJump(key){
+  const el = document.getElementById('cm-' + key), bar = document.querySelector('.calbar');
+  if(!el){ window.scrollTo(0,0); return; }
+  window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - (bar ? bar.offsetHeight : 0) + 4);
 }
 function calDaySheet(ds){
   const root = $('#sheetRoot');
@@ -1531,8 +1532,7 @@ function render(){
   if(kp){ $('#rest').innerHTML = renderKids(); return; }
   if(cp){
     $('#rest').innerHTML = renderCalendar();
-    if(calScroll){ calScroll = false; const el = document.getElementById('cm-' + today().slice(0,7)); if(el) el.scrollIntoView({block:'start'}); }
-    calWatch();
+    if(calScroll){ calScroll = false; calJump(today().slice(0,7)); }
     return;
   }
   if(np){
@@ -2071,8 +2071,9 @@ $('#app').addEventListener('click', e => {
   else if('shopping' in b.dataset){ mode='shopping'; render(); window.scrollTo({top:0}); }
   else if('shopback' in b.dataset){ mode='shopping'; render(); window.scrollTo({top:0}); }
   else if('shhist' in b.dataset){ mode='shophist'; shopQ=''; render(); window.scrollTo({top:0}); }
-  else if('cal' in b.dataset){ mode='calendar'; calFrom = -6; calTo = 18; calScroll = true; render(); }
-  else if('caltoday' in b.dataset){ calPause = Date.now() + 1000; const el = document.getElementById('cm-' + today().slice(0,7)); if(el) el.scrollIntoView({block:'start'}); }
+  else if('cal' in b.dataset){ mode='calendar'; calYear = null; calScroll = true; render(); }
+  else if('caltoday' in b.dataset){ const t = today(); if(calYear && calYear !== +t.slice(0,4)){ calYear = null; render(); } calJump(t.slice(0,7)); }
+  else if(b.dataset.calyear){ calYear = (calYear || +today().slice(0,4)) + (+b.dataset.calyear); render(); window.scrollTo(0,0); }
   else if('calcolors' in b.dataset){ calColorsSheet(); }
   else if(b.dataset.cday){ calDaySheet(b.dataset.cday); }
   else if('kids' in b.dataset){ if(window.PX) PX.unlock(); mode='kids'; render(); window.scrollTo({top:0}); }
