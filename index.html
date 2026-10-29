@@ -449,6 +449,48 @@ button.side:hover .ic{background:var(--orange)}
 .kconfirm{display:flex;flex-direction:column;gap:10px;background:var(--soft);border-radius:18px;padding:14px;margin:12px 0 14px;font-size:15px;font-weight:600}
 .kconfirm div{display:flex;align-items:center;gap:10px}
 .kconfirm small{font-size:12.5px;font-weight:700;color:var(--ink-2)}
+.caltool .lic{background:#FDE3E0;color:#E0473A}
+.calbtn{border:0;background:var(--surface);color:var(--ink);border-radius:999px;padding:9px 14px;font:inherit;font-weight:800;font-size:13.5px;box-shadow:var(--shadow);min-height:40px}
+.head .calbtn:first-of-type{margin-left:auto}
+.calleg{display:flex;flex-wrap:wrap;gap:8px;margin-top:-6px}
+.calchip{display:flex;align-items:center;gap:6px;background:var(--surface);border-radius:999px;padding:6px 11px;font-size:13px;font-weight:800;box-shadow:var(--shadow)}
+.calchip i{width:10px;height:10px;border-radius:50%}
+.calempty{border:2px dashed var(--line);background:none;border-radius:18px;padding:14px;font:inherit;font-weight:700;font-size:14px;color:var(--ink-2);text-align:left;line-height:1.4}
+.calwk{position:sticky;top:0;z-index:5;display:grid;grid-template-columns:repeat(7,1fr);background:var(--bg);padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;font-weight:800;text-align:center;color:var(--ink)}
+.calwk .we{color:var(--ink-3)}
+.calm h4{margin:18px 4px 6px;font-size:22px;font-weight:800}
+.calm:has(.today) h4{color:var(--danger)}
+.mgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.cday{min-width:0;border:0;background:none;padding:8px 0 6px;display:flex;flex-direction:column;align-items:center;gap:1px;font:inherit;color:var(--ink);min-height:64px;border-top:1px solid var(--line);border-radius:0}
+.mgrid > span{border-top:1px solid transparent}
+.cday b{font-size:20px;font-weight:800;line-height:1.15;width:36px;height:30px;display:grid;place-items:center;border-radius:999px}
+.cday small{font-size:11px;font-weight:700;color:var(--ink-2);line-height:1.2;max-width:100%;overflow:hidden;white-space:nowrap}
+.cday small.hm{color:var(--danger);font-size:10px}
+.cday.we b,.cday.we small{color:var(--ink-3)}
+.cday.today b{background:var(--danger);color:#fff}
+.cdots{display:flex;gap:3px;height:8px;align-items:center}
+.cdots i{width:8px;height:8px;border-radius:50%}
+.calhj{display:block;font-size:13px;font-weight:700;color:var(--ink-2);margin-top:2px}
+.calopts{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.calopt{display:flex;align-items:center;gap:12px;width:100%;border:2px solid transparent;background:var(--soft);border-radius:16px;padding:14px;font:inherit;font-weight:800;font-size:16px;color:var(--ink);text-align:left}
+.calopt i{width:22px;height:22px;border-radius:50%;background:var(--c);flex:none}
+.calopt span{flex:1}
+.calopt em{font-style:normal;color:var(--c);font-size:20px}
+.calopt.on{border-color:var(--c);background:var(--surface)}
+.calnone,.calhint{font-size:13px;font-weight:700;color:var(--ink-2);padding:4px}
+.calhint{margin-top:8px}
+.clnew{display:flex;flex-direction:column;gap:12px;margin-top:12px;background:var(--soft);border-radius:18px;padding:14px}
+.clnew input{height:50px;border-radius:14px;border:2px solid transparent;background:var(--surface);padding:0 14px;font-size:16px;font-weight:600;color:var(--ink);outline:none}
+.clnew input:focus{border-color:var(--orange)}
+.clsw{display:flex;flex-wrap:wrap;gap:10px}
+.csw{width:36px;height:36px;border-radius:50%;border:3px solid var(--surface);box-shadow:0 0 0 2px transparent;padding:0}
+.csw.on{box-shadow:0 0 0 3px var(--ink)}
+.caledit{display:flex;align-items:center;gap:10px;background:var(--soft);border-radius:16px;padding:8px 10px}
+.caledit .cdot{width:30px;height:30px;border-radius:50%;border:0;background:var(--c);flex:none;padding:0}
+.caledit input{flex:1;min-width:0;height:40px;border:0;background:none;font:inherit;font-weight:800;font-size:16px;color:var(--ink);outline:none}
+.ccount{font-size:12px;font-weight:700;color:var(--ink-3);white-space:nowrap}
+.cdel{border:0;background:none;font:inherit;font-size:16px;padding:6px;border-radius:12px;white-space:nowrap}
+.cdel.armed{background:var(--danger);color:#fff;font-size:12.5px;font-weight:800;padding:8px 10px}
 .kprivate{font-size:12.5px;font-weight:700;color:var(--ink-2);margin-top:12px}
 .kstage{position:relative;overflow:hidden;border-radius:50%;margin:14px auto 10px;touch-action:none;background:var(--soft);box-shadow:0 0 0 4px var(--surface),0 0 0 6px var(--line)}
 .kstage img{position:absolute;left:0;top:0;max-width:none;user-select:none;-webkit-user-select:none;pointer-events:none;transform-origin:0 0}
@@ -684,7 +726,7 @@ const I = {
 };
 
 let db = null, synced = null;
-let people = [], projects = [], tasks = [], shop = [], shopQ = '', shEditId = null, beach = [], notes = [], kids = [], kidPts = [], kAnim = null, nProj = null, nFix = false, nQ = '', nShowFixed = false, nEditId = null, nFocus = false, bAddGrp = null, bConfirm = false, bMoveId = null, bQuick = null, bQFocus = false, bIFocus = false;
+let people = [], projects = [], tasks = [], shop = [], shopQ = '', shEditId = null, beach = [], notes = [], marks = [], markLabels = [], calScroll = false, kids = [], kidPts = [], kAnim = null, nProj = null, nFix = false, nQ = '', nShowFixed = false, nEditId = null, nFocus = false, bAddGrp = null, bConfirm = false, bMoveId = null, bQuick = null, bQFocus = false, bIFocus = false;
 let sel = null;          // selected date
 let filter = {personId:null, projectId:null};   // independent facets, either or both may be set
 let mode = 'day';        // day | history
@@ -734,7 +776,7 @@ function passes(t){
 
 /* ---------- writes (optimistic) ---------- */
 function localApply(col, id, data){
-  const arr = col==='tasks'?tasks:col==='shopping'?shop:col==='beach'?beach:col==='notes'?notes:col==='kids'?kids:col==='kid_points'?kidPts:col==='people'?people:projects;
+  const arr = col==='tasks'?tasks:col==='shopping'?shop:col==='beach'?beach:col==='notes'?notes:col==='kids'?kids:col==='kid_points'?kidPts:col==='day_marks'?marks:col==='mark_labels'?markLabels:col==='people'?people:projects;
   const i = arr.findIndex(x=>x.id===id);
   if(data===null){ if(i>-1) arr.splice(i,1); }
   else if(i>-1) arr[i] = {id, ...data}; else arr.push({id, ...data});
@@ -840,7 +882,7 @@ function renderTools(){
   const nFixOpen = notes.filter(x=>x.kind==='fix'&&!x.done).length, half = kids.length ? ' half' : ' beachbar';
   h += `<button type="button" class="laterbar notebar${half}" data-notes aria-label="Open notes"><span class="lic">${I.note}</span><span class="ltxt"><b>Notes</b><small>${notes.length ? notes.length + ' note' + (notes.length>1?'s':'') + (nFixOpen ? ' · ' + nFixOpen + ' to fix' : '') : (kids.length ? 'Quick thoughts' : 'Quick thoughts, no pressure')}</small></span>${kids.length ? '' : `<span class="lchev">${I.right}</span>`}</button>`;
   if(kids.length) h += `<button type="button" class="laterbar kidsbar half" data-kids aria-label="Open kids game"><span class="lic kav">${allKids().map(k=>{ const sc = kidScore(k.id), ph = kidPhoto(k); return `<i style="background:${esc(k.color||'#3B82F6')}">${ph ? `<img src="${esc(ph)}" alt="">` : esc(kidInitial(k))}<b>${window.PX ? PX.face(PX.mood(sc.yes, sc.no), 1.1) : ''}</b></i>`; }).join('')}</span><span class="ltxt"><b>Kids</b><small>${allKids().map(k=>{ const sc = kidScore(k.id), d = sc.yes - sc.no; return `<span class="${d>0?'kup':d<0?'kdown':''}">${d>0?'+':d<0?'−':''}${Math.abs(d)}</span>`; }).join(' · ')}</small></span></button>`;
-  h += renderBeach();
+  h += renderCalTile() + renderBeach(true);
   h += `</div>`;
   return h + `</div></div>`;
 }
@@ -1091,10 +1133,130 @@ async function kidLink(id){
   if(navigator.share){ try{ await navigator.share({title:k.name + "'s scoreboard", url}); return; }catch(e){ if(e && e.name==='AbortError') return; } }
   try{ await navigator.clipboard.writeText(url); toast(k.name + "'s link copied"); }catch(_){ prompt('Copy this link', url); }
 }
-function renderBeach(){
+/* ---------- calendar: colour marks on days ---------- */
+const MARK_COLORS = ['#E0473A','#EF7B2D','#F4B71A','#2FA66A','#13A3B5','#3B82F6','#8B5CF6','#E0509A','#8B5A2B','#7B716B'];
+const allMarkLabels = () => [...markLabels].sort((a,b)=>(a.sort||0)-(b.sort||0) || a.name.localeCompare(b.name));
+const markId = (date, labelId) => date + '_' + labelId;
+const _hijriDay = new Intl.DateTimeFormat('en-u-ca-islamic-civil-nu-latn', {day:'numeric', timeZone:'UTC'});
+const _hijriMonth = new Intl.DateTimeFormat('ar-u-ca-islamic-civil', {month:'long', timeZone:'UTC'});
+const hijriCache = {};
+function hijri(ymdStr){
+  if(hijriCache[ymdStr]) return hijriCache[ymdStr];
+  const [y,m,d] = ymdStr.split('-').map(Number), dt = new Date(Date.UTC(y,m-1,d));
+  let day = ''; try{ day = _hijriDay.format(dt).replace(/\D/g,''); }catch(_){}
+  let label = day;
+  if(day === '1'){ try{ label = _hijriMonth.format(dt); }catch(_){} }
+  return hijriCache[ymdStr] = {day, label, first: day === '1'};
+}
+function renderCalTile(){
+  const t0 = today(), mine = marks.filter(x=>x.date===t0);
+  const lbl = mine.map(x=>markLabels.find(l=>l.id===x.labelId)).filter(Boolean);
+  const sub = lbl.length ? 'Today: ' + lbl.map(l=>l.name).join(', ') : (markLabels.length ? 'Nothing marked today' : 'Mark days with colours');
+  return `<button type="button" class="laterbar caltool half" data-cal aria-label="Open calendar"><span class="lic">${I.cal}</span><span class="ltxt"><b>Calendar</b><small>${esc(sub)}</small></span></button>`;
+}
+function renderCalendar(){
+  const t0 = today(), labels = allMarkLabels();
+  const byDate = {};
+  marks.forEach(m => { const l = markLabels.find(x=>x.id===m.labelId); if(l) (byDate[m.date] = byDate[m.date] || []).push(l); });
+  let h = `<button class="back" data-back>${I.left}Back</button><div class="head"><h3 style="font-size:28px">Calendar</h3><button type="button" class="calbtn" data-caltoday>Today</button><button type="button" class="calbtn" data-calcolors>🎨 Colours</button></div>`;
+  h += labels.length ? `<div class="calleg">${labels.map(l=>`<span class="calchip"><i style="background:${esc(l.color)}"></i>${esc(l.name)}</span>`).join('')}</div>`
+    : `<button type="button" class="calempty" data-calcolors>🎨 Add your first colour, for example <b style="color:#E0473A">Red = Pay day</b>. Then tap any day to mark it.</button>`;
+  h += `<div class="calwk">${['M','Tu','W','Th','F','Sa','Su'].map((d,i)=>`<span${i>4?' class="we"':''}>${d}</span>`).join('')}</div>`;
+  const base = parse(t0); base.setDate(1);
+  for(let mi=-3; mi<=12; mi++){
+    const first = new Date(base.getFullYear(), base.getMonth()+mi, 1);
+    const days = new Date(first.getFullYear(), first.getMonth()+1, 0).getDate();
+    const key = first.getFullYear() + '-' + pad(first.getMonth()+1);
+    h += `<section class="calm" id="cm-${key}"><h4>${first.toLocaleDateString('en-AU',{month:'long'})}${first.getFullYear()!==base.getFullYear()?' '+first.getFullYear():''}</h4><div class="mgrid">`;
+    for(let i=0;i<(first.getDay()+6)%7;i++) h += '<span></span>';
+    for(let d=1; d<=days; d++){
+      const ds = key + '-' + pad(d), dow = (new Date(first.getFullYear(), first.getMonth(), d).getDay()+6)%7, hj = hijri(ds), ls = byDate[ds] || [];
+      h += `<button type="button" class="cday${ds===t0?' today':''}${dow>4?' we':''}" data-cday="${ds}"><b>${d}</b><small class="${hj.first?'hm':''}">${esc(hj.label)}</small><span class="cdots">${ls.slice(0,4).map(l=>`<i style="background:${esc(l.color)}"></i>`).join('')}</span></button>`;
+    }
+    h += '</div></section>';
+  }
+  return h + '<div style="height:96px"></div>';
+}
+function calDaySheet(ds){
+  const root = $('#sheetRoot');
+  const draw = (adding) => {
+    const labels = allMarkLabels(), on = new Set(marks.filter(m=>m.date===ds).map(m=>m.labelId));
+    const d = parse(ds), hj = hijri(ds);
+    let hijriFull = ''; try{ hijriFull = new Intl.DateTimeFormat('ar-u-ca-islamic-civil',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()))); }catch(_){}
+    root.innerHTML = `<div class="scrim" data-scrim><div class="sheet" role="dialog" aria-modal="true" aria-label="Mark day">
+      <div class="grab"></div><div class="sheethead"><h4>${esc(d.toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'}))}<small class="calhj">${esc(hijriFull)}</small></h4><button type="button" class="closex" data-cs="close" aria-label="Close">${I.x}</button></div>
+      <div class="calopts">${labels.map(l=>`<button type="button" class="calopt${on.has(l.id)?' on':''}" data-cml="${esc(l.id)}" style="--c:${esc(l.color)}"><i></i><span>${esc(l.name)}</span><em>${on.has(l.id)?'✓':''}</em></button>`).join('') || '<div class="calnone">No colours yet. Add one below.</div>'}</div>
+      ${adding ? newLabelForm() : `<button type="button" class="kpick" data-cs="add">＋ New colour</button>`}
+    </div></div>`;
+    if(adding) setTimeout(()=>$('#clName')?.focus(), 30);
+  };
+  draw(false);
+  root.onchange = null;
+  root.onclick = e => {
+    if(e.target.matches('[data-scrim]')){ closeSheet(); return; }
+    const sw = e.target.closest('[data-csw]'); if(sw){ root.querySelectorAll('[data-csw]').forEach(x=>x.classList.toggle('on', x===sw)); return; }
+    const b = e.target.closest('[data-cml],[data-cs]'); if(!b) return;
+    if(b.dataset.cml){ const id = markId(ds, b.dataset.cml); if(marks.some(m=>m.id===id)) del('day_marks', id); else put('day_marks', id, {date:ds, labelId:b.dataset.cml, createdAt:Date.now()}); draw(false); }
+    else if(b.dataset.cs==='close') closeSheet();
+    else if(b.dataset.cs==='add') draw(true);
+    else if(b.dataset.cs==='save'){ const id = saveNewLabel(); if(id){ put('day_marks', markId(ds, id), {date:ds, labelId:id, createdAt:Date.now()}); draw(false); } }
+    else if(b.dataset.cs==='cancel') draw(false);
+  };
+}
+function newLabelForm(){
+  const used = new Set(markLabels.map(l=>l.color)), pick = MARK_COLORS.find(c=>!used.has(c)) || MARK_COLORS[0];
+  return `<div class="clnew"><input id="clName" type="text" maxlength="30" placeholder="What does this colour mean? e.g. Pay day" enterkeyhint="done" aria-label="Colour meaning">
+    <div class="clsw">${MARK_COLORS.map(c=>`<button type="button" class="csw${c===pick?' on':''}" data-csw="${c}" style="background:${c}" aria-label="Colour"></button>`).join('')}</div>
+    <div class="btns"><button class="btn" data-cs="cancel">Cancel</button><button class="btn primary" data-cs="save">Add colour</button></div></div>`;
+}
+function saveNewLabel(){
+  const name = ($('#clName')?.value || '').trim().slice(0,30);
+  if(!name){ $('#clName')?.focus(); return null; }
+  const color = (document.querySelector('.csw.on') || {}).dataset?.csw || MARK_COLORS[0];
+  const id = uid(), sort = markLabels.reduce((m,l)=>Math.max(m,l.sort||0),0) + 1;
+  put('mark_labels', id, {name, color, sort});
+  return id;
+}
+function calColorsSheet(){
+  const root = $('#sheetRoot');
+  const draw = (adding) => {
+    root.innerHTML = `<div class="scrim" data-scrim><div class="sheet" role="dialog" aria-modal="true" aria-label="Colours">
+      <div class="grab"></div><div class="sheethead"><h4>Your colours</h4><button type="button" class="closex" data-cs="close" aria-label="Close">${I.x}</button></div>
+      <div class="calopts">${allMarkLabels().map(l=>{ const n = marks.filter(m=>m.labelId===l.id).length; return `<div class="caledit" style="--c:${esc(l.color)}"><button type="button" class="cdot" data-ccyc="${esc(l.id)}" aria-label="Change colour"></button><input value="${esc(l.name)}" data-cren="${esc(l.id)}" maxlength="30" aria-label="Colour meaning"><span class="ccount">${n} day${n===1?'':'s'}</span><button type="button" class="cdel" data-cdel="${esc(l.id)}" aria-label="Delete colour">🗑️</button></div>`; }).join('') || '<div class="calnone">No colours yet.</div>'}</div>
+      <div class="calhint">Tap a dot to change its colour. Tap the name to rename it.</div>
+      ${adding ? newLabelForm() : `<button type="button" class="kpick" data-cs="add">＋ New colour</button>`}
+    </div></div>`;
+    if(adding) setTimeout(()=>$('#clName')?.focus(), 30);
+  };
+  draw(false);
+  root.onchange = e => {
+    const id = e.target.dataset && e.target.dataset.cren; if(!id) return;
+    const l = markLabels.find(x=>x.id===id), v = e.target.value.trim().slice(0,30);
+    if(l && v && v !== l.name) put('mark_labels', id, strip({...l, name:v}));
+  };
+  root.onclick = e => {
+    if(e.target.matches('[data-scrim]')){ closeSheet(); return; }
+    const sw = e.target.closest('[data-csw]'); if(sw){ root.querySelectorAll('[data-csw]').forEach(x=>x.classList.toggle('on', x===sw)); return; }
+    const b = e.target.closest('[data-cs],[data-ccyc],[data-cdel]'); if(!b) return;
+    if(b.dataset.ccyc){ const l = markLabels.find(x=>x.id===b.dataset.ccyc); if(l){ const i = MARK_COLORS.indexOf(l.color); put('mark_labels', l.id, strip({...l, color:MARK_COLORS[(i+1) % MARK_COLORS.length]})); draw(false); } }
+    else if(b.dataset.cdel){
+      const l = markLabels.find(x=>x.id===b.dataset.cdel); if(!l) return;
+      const n = marks.filter(m=>m.labelId===l.id).length;
+      if(!b.classList.contains('armed')){ b.classList.add('armed'); b.textContent = n ? `Delete + ${n} mark${n===1?'':'s'}?` : 'Delete?'; return; }
+      const snapL = {...l}, snapM = marks.filter(m=>m.labelId===l.id).map(m=>({...m}));
+      snapM.forEach(m => del('day_marks', m.id)); del('mark_labels', l.id); draw(false);
+      toast(`Deleted ${snapL.name}`, 'Undo', () => { put('mark_labels', snapL.id, strip(snapL)); snapM.forEach(m => put('day_marks', m.id, strip(m))); });
+    }
+    else if(b.dataset.cs==='close') closeSheet();
+    else if(b.dataset.cs==='add') draw(true);
+    else if(b.dataset.cs==='save'){ if(saveNewLabel()) draw(false); }
+    else if(b.dataset.cs==='cancel') draw(false);
+  };
+}
+function renderBeach(half){
   const total = beach.length, np = beach.filter(x=>x.packed).length;
   const sub = total && np===total ? 'All packed' : `${np} of ${total} packed`;
-  return `<button type="button" class="laterbar beachbar" data-beach aria-label="Open beach list"><span class="lic">${I.umbrella}</span><span class="ltxt"><b>Beach list</b><small>${sub}</small></span><span class="lchev">${I.right}</span></button>`;
+  return `<button type="button" class="laterbar beachbar${half?' half':''}" data-beach aria-label="Open beach list"><span class="lic">${I.umbrella}</span><span class="ltxt"><b>Beach list</b><small>${sub}</small></span>${half?'':`<span class="lchev">${I.right}</span>`}</button>`;
 }
 const bGroups = () => { const groups = []; beach.slice().sort(bSort).forEach(x => { let g = groups.find(y=>y.name===x.grp); if(!g) groups.push(g={name:x.grp,items:[]}); g.items.push(x); }); return groups; };
 function renderBeachPage(){
@@ -1324,15 +1486,16 @@ function renderOverview(){
 }
 function render(){
   $('#warn').innerHTML = synced===false ? `<div class="warn">Connection lost — trying to reconnect. Changes may not save until it's back.</div>` : '';
-  const hist = mode==='history', ov = mode==='overview', rv = mode==='reminders', lt = mode==='later', sp = mode==='shopping', sh2 = mode==='shophist', bp = mode==='beach', np = mode==='notes', kp = mode==='kids';
-  $('#top').style.display = (hist||ov||rv||lt||sp||sh2||bp||np||kp) ? 'none' : 'flex';
-  $('#qa').style.display = (hist||ov||rv||lt||sp||sh2||bp||np||kp) ? 'none' : 'flex';
+  const hist = mode==='history', ov = mode==='overview', rv = mode==='reminders', lt = mode==='later', sp = mode==='shopping', sh2 = mode==='shophist', bp = mode==='beach', np = mode==='notes', kp = mode==='kids', cp = mode==='calendar';
+  $('#top').style.display = (hist||ov||rv||lt||sp||sh2||bp||np||kp||cp) ? 'none' : 'flex';
+  $('#qa').style.display = (hist||ov||rv||lt||sp||sh2||bp||np||kp||cp) ? 'none' : 'flex';
   if(hist){ $('#rest').innerHTML = renderHistory(); return; }
   if(ov){ $('#rest').innerHTML = renderOverview(); return; }
   if(rv){ $('#rest').innerHTML = renderReminders(); return; }
   if(lt){ $('#rest').innerHTML = renderLater(); return; }
   if(sp){ const had = document.activeElement && document.activeElement.id==='shInput'; $('#rest').innerHTML = renderShopping(); if(had) $('#shInput').focus(); const ei=document.querySelector('.shedit'); if(ei){ ei.focus(); ei.select(); } return; }
   if(kp){ $('#rest').innerHTML = renderKids(); return; }
+  if(cp){ $('#rest').innerHTML = renderCalendar(); if(calScroll){ calScroll = false; const t = today(); const el = document.getElementById('cm-' + t.slice(0,7)); if(el) el.scrollIntoView({block:'start'}); } return; }
   if(np){
     const a = document.activeElement; const hadN = a && a.id==='nInput'; const vN = hadN ? a.value : ''; const ei = a && a.classList && a.classList.contains('nedit');
     $('#rest').innerHTML = renderNotes();
@@ -1869,6 +2032,10 @@ $('#app').addEventListener('click', e => {
   else if('shopping' in b.dataset){ mode='shopping'; render(); window.scrollTo({top:0}); }
   else if('shopback' in b.dataset){ mode='shopping'; render(); window.scrollTo({top:0}); }
   else if('shhist' in b.dataset){ mode='shophist'; shopQ=''; render(); window.scrollTo({top:0}); }
+  else if('cal' in b.dataset){ mode='calendar'; calScroll = true; render(); }
+  else if('caltoday' in b.dataset){ const el = document.getElementById('cm-' + today().slice(0,7)); if(el) el.scrollIntoView({block:'start', behavior:'smooth'}); }
+  else if('calcolors' in b.dataset){ calColorsSheet(); }
+  else if(b.dataset.cday){ calDaySheet(b.dataset.cday); }
   else if('kids' in b.dataset){ if(window.PX) PX.unlock(); mode='kids'; render(); window.scrollTo({top:0}); }
   else if(b.dataset.kadd){ kidAdd(b.dataset.kadd, b.dataset.kk, 1); }
   else if(b.dataset.kuse){ kidAdd(b.dataset.kuse, b.dataset.kk, -1); }
@@ -1985,6 +2152,8 @@ function makeDb(sb){
     shopping: r => ({id:r.id, title:r.title, addedAt:r.added_at, boughtAt:r.bought_at||null}),
     beach: r => ({id:r.id, title:r.title, grp:r.grp||'Other', sort:r.sort||0, packed:!!r.packed, addedAt:r.added_at}),
     kids: r => ({id:r.id, name:r.name, color:r.color, sort:r.sort||0, shareToken:r.share_token, photoPath:r.photo_path||null, resetAt:r.reset_at||null}),
+    day_marks: r => ({id:r.id, date:r.date, labelId:r.label_id, createdAt:r.created_at}),
+    mark_labels: r => ({id:r.id, name:r.name, color:r.color, sort:r.sort||0}),
     kid_points: r => ({id:r.id, kidId:r.kid_id, kind:r.kind, delta:r.delta, createdAt:r.created_at}),
     notes: r => ({id:r.id, text:r.text, projectId:r.project_id||null, kind:r.kind==='fix'?'fix':'note', done:!!r.done, pinned:!!r.pinned, createdAt:r.created_at}),
     people: r => ({id:r.id, name:r.name, color:r.color, order:r.order||0, isMe:!!r.is_me}),
@@ -1994,6 +2163,8 @@ function makeDb(sb){
     tasks: d => ({title:d.title, note:d.note||'', person_id:d.personId||null, person_ids:d.personIds||[], project_id:d.projectId||null, priority:d.priority||null, date:d.date||null, done:!!d.done, done_at:d.doneAt||null, created_at:d.createdAt||Date.now(), repeat_rule:d.repeat||null, ...remindCols(d)}),
     shopping: d => ({title:d.title, added_at:d.addedAt, bought_at:d.boughtAt||null}),
     beach: d => ({title:d.title, grp:d.grp||'Other', sort:d.sort||0, packed:!!d.packed, added_at:d.addedAt||Date.now()}),
+    day_marks: d => ({date:d.date, label_id:d.labelId, created_at:d.createdAt||Date.now()}),
+    mark_labels: d => ({name:d.name, color:d.color, sort:d.sort||0}),
     kid_points: d => ({kid_id:d.kidId, kind:d.kind==='no'?'no':'yes', delta:d.delta===-1?-1:1, created_at:d.createdAt||Date.now()}),
     notes: d => ({text:d.text, project_id:d.projectId||null, kind:d.kind==='fix'?'fix':'note', done:!!d.done, pinned:!!d.pinned, created_at:d.createdAt||Date.now()}),
     people: d => ({name:d.name, color:d.color, order:d.order||0, is_me:!!d.isMe}),
@@ -2052,7 +2223,7 @@ function startSync(){
   const sub = (col, set) => db.collection(col).onSnapshot(s => { set(s.docs.map(d=>({id:d.id, ...d.data()}))); render(); },
     () => { synced = false; render(); });
   db.doc('settings/app').onSnapshot(d => { if(d.exists){ settings = {...settings, ...d.data()}; render(); } }, ()=>{});
-  sub('people', v=>people=v); sub('projects', v=>projects=v); sub('tasks', v=>tasks=v); sub('shopping', v=>shop=v); sub('beach', v=>beach=v); sub('notes', v=>notes=v); sub('kids', v=>kids=v); sub('kid_points', v=>kidPts=v);
+  sub('people', v=>people=v); sub('projects', v=>projects=v); sub('tasks', v=>tasks=v); sub('shopping', v=>shop=v); sub('beach', v=>beach=v); sub('notes', v=>notes=v); sub('kids', v=>kids=v); sub('kid_points', v=>kidPts=v); sub('mark_labels', v=>markLabels=v); sub('day_marks', v=>marks=v);
 }
 function stopSync(){ if(db && db.teardown) db.teardown(); db = null; synced = null; }
 
