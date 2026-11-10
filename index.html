@@ -699,6 +699,76 @@ body.askopen{overflow:hidden}
 .hcard .r{font-size:15px;line-height:1.35;color:var(--ink-2);white-space:pre-wrap;word-break:break-word}
 .hcard .f{display:flex;gap:16px}
 .hcard .f button{background:none;border:0;padding:2px 0;font-weight:800;font-size:13px;color:var(--orange)}
+/* ---------- Agents ---------- */
+.agpage{display:flex;flex-direction:column;gap:14px;padding-bottom:96px}
+.agpick{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -2px;padding:2px}
+.agpick button{height:44px;padding:0 16px;border-radius:999px;background:var(--surface);font-weight:800;box-shadow:var(--shadow);white-space:nowrap;display:flex;align-items:center;gap:8px}
+.agpick button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.agpick small{font-size:12px;font-weight:800;opacity:.7}
+.agseg button{font-size:17px;display:flex;align-items:center;justify-content:center;gap:8px}
+.agn{min-width:22px;height:22px;padding:0 7px;border-radius:999px;background:var(--orange);color:#fff;font-size:13px;font-weight:800;display:inline-grid;place-items:center;box-sizing:border-box}
+.agstrip{background:var(--peach);color:var(--peach-ink);border-radius:24px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.agsth{font-weight:800;font-size:17px}
+.agappr{background:var(--surface);color:var(--ink);border-radius:18px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.agak{font-weight:800;font-size:16px}
+.agah{font-size:14px;color:var(--ink-2);font-weight:700}
+.agat{white-space:pre-wrap;word-break:break-word;background:var(--soft);border-radius:12px;padding:10px 12px;font-size:15px;line-height:1.4}
+.agfine{font-size:12.5px;color:var(--ink-3);font-weight:700}
+.agacts{display:flex;gap:8px;flex-wrap:wrap}
+.agbtn{flex:1;min-width:120px;height:52px;border-radius:16px;font-weight:800;font-size:17px;color:#fff}
+.agbtn.ok{background:#2FA66A}
+.agbtn.no{background:var(--danger)}
+.agbtn.armed{box-shadow:0 0 0 3px var(--surface),0 0 0 6px var(--ink)}
+.agbtn:disabled{opacity:.5}
+.aglist{display:flex;flex-direction:column;gap:12px}
+.agsw{position:relative}
+.agdel{position:absolute;right:0;top:0;bottom:0;width:84px;border-radius:22px;background:var(--danger);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:13px;font-weight:800}
+.agdel svg{width:22px;height:22px}
+.agsw:not(.swiped):not(.peek) .agdel{visibility:hidden}
+.agcard{position:relative;background:var(--surface);border-radius:22px;box-shadow:var(--shadow);border-left:8px solid var(--sev);overflow:hidden;transition:transform .2s;touch-action:pan-y}
+.aghead{display:flex;flex-direction:column;gap:6px;width:100%;text-align:left;padding:14px 16px}
+.agmeta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12.5px;font-weight:800}
+.agsev{background:color-mix(in srgb,var(--sev) 18%,transparent);color:var(--ink);padding:3px 9px;border-radius:999px}
+.agkind{color:var(--ink-2)}
+.agshop{padding:3px 9px;border-radius:999px;background:var(--soft);color:var(--ink)}
+.agshop.mt{background:#ffd93d;color:#1F1A17}
+.agshop.mcc{background:#4ad6ff;color:#1F1A17}
+.agtime{margin-left:auto;color:var(--ink-3)}
+.agdot{width:10px;height:10px;border-radius:50%;background:var(--orange);flex:none}
+.aghl{font-size:19px;font-weight:800;line-height:1.25}
+.agprev{color:var(--ink-2);font-size:15px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.agimgl{display:block}
+.agimg{display:block;width:100%;height:auto;max-height:560px;object-fit:contain;background:var(--soft);-webkit-user-drag:none;user-select:none;-webkit-user-select:none}
+.agbody{padding:0 16px 14px;font-size:15.5px;line-height:1.5;word-break:break-word}
+.agbody h5,.agm h5{margin:12px 0 4px;font-size:16px;font-weight:800}
+.agbody p,.agm p{margin:6px 0}
+.agbody ul,.agbody ol,.agm ul,.agm ol{margin:6px 0;padding-left:22px}
+.agbody code,.agm code{background:var(--soft);padding:1px 5px;border-radius:6px;font-size:.92em}
+.agsum{font-weight:700}
+.agtbl{overflow-x:auto;margin:8px 0;-webkit-overflow-scrolling:touch}
+.agtbl table{border-collapse:collapse;width:100%;font-size:14px}
+.agtbl th,.agtbl td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+.agtbl th{font-weight:800;color:var(--ink-2)}
+.agcard > .agacts{padding:0 16px 14px}
+.agchat{display:flex;flex-direction:column;gap:10px}
+.agm{display:flex;flex-direction:column;max-width:85%;align-self:flex-start;align-items:flex-start}
+.agm.u{align-self:flex-end;align-items:flex-end}
+.agm .b{padding:10px 14px;border-radius:20px;background:var(--surface);box-shadow:var(--shadow);word-break:break-word;line-height:1.4}
+.agm.u .b{background:var(--orange);color:#fff;border-bottom-right-radius:6px;white-space:pre-wrap}
+.agm.a .b{border-bottom-left-radius:6px}
+.agm.a .b > :first-child{margin-top:0}.agm.a .b > :last-child{margin-bottom:0}
+.agm small{font-size:11.5px;color:var(--ink-3);font-weight:700;margin:3px 6px 0}
+.agm.pending{opacity:.6}
+.agnote{background:var(--soft);border-radius:16px;padding:10px 14px;font-size:14px;font-weight:700;color:var(--ink-2)}
+.agform{position:sticky;bottom:calc(10px + env(safe-area-inset-bottom,0px));display:flex;gap:8px;align-items:flex-end;background:var(--surface);border-radius:26px;padding:6px 6px 6px 16px;box-shadow:0 8px 28px rgba(0,0,0,.14);z-index:5}
+.agform textarea{flex:1;min-width:0;border:0;background:transparent;resize:none;font-size:17px;line-height:1.35;padding:10px 0;max-height:140px;outline:none}
+.agform button{width:46px;height:46px;border-radius:50%;background:var(--orange);color:#fff;display:grid;place-items:center;flex:none}
+.agform button svg{width:22px;height:22px;transform:rotate(-90deg)}
+.agform button:disabled{opacity:.5}
+.laterbar.agtool .lic{font-size:22px;background:#E3F7FD}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .laterbar.agtool .lic{background:#123540}}
+:root[data-theme="dark"] .laterbar.agtool .lic{background:#123540}
+.laterbar .lcount.hot{background:var(--orange);color:#fff}
 </style>
 </head>
 <body>
@@ -763,6 +833,9 @@ let sel = null;          // selected date
 let filter = {personId:null, projectId:null};   // independent facets, either or both may be set
 let mode = 'day';        // day | history
 let histLimit = 60, showSomeday = false, tq = null, tsFocus = false;
+// Agents section state (see the Agents block further down)
+let agAgents = [], agSlug = null, agCards = [], agAppr = [], agMsgs = [], agTab = 'feed', agOpenId = null;
+let agLoaded = false, agErr = '', agAt = 0, agChans = [], agTimer = null, agSending = false, agDraft = '', agScroll = false, agArm = null, agArmT = null, agSeq = 0;
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -914,7 +987,7 @@ function renderTools(){
   const nFixOpen = notes.filter(x=>x.kind==='fix'&&!x.done).length, half = kids.length ? ' half' : ' beachbar';
   h += `<button type="button" class="laterbar notebar${half}" data-notes aria-label="Open notes"><span class="lic">${I.note}</span><span class="ltxt"><b>Notes</b><small>${notes.length ? notes.length + ' note' + (notes.length>1?'s':'') + (nFixOpen ? ' · ' + nFixOpen + ' to fix' : '') : (kids.length ? 'Quick thoughts' : 'Quick thoughts, no pressure')}</small></span>${kids.length ? '' : `<span class="lchev">${I.right}</span>`}</button>`;
   if(kids.length) h += `<button type="button" class="laterbar kidsbar half" data-kids aria-label="Open kids game"><span class="lic kav">${allKids().map(k=>{ const sc = kidScore(k.id), ph = kidPhoto(k); return `<i style="background:${esc(k.color||'#3B82F6')}">${ph ? `<img src="${esc(ph)}" alt="">` : esc(kidInitial(k))}<b>${window.PX ? PX.face(PX.mood(sc.yes, sc.no), 1.1) : ''}</b></i>`; }).join('')}</span><span class="ltxt"><b>Kids</b><small>${allKids().map(k=>{ const sc = kidScore(k.id), d = sc.yes - sc.no; return `<span class="${d>0?'kup':d<0?'kdown':''}">${d>0?'+':d<0?'−':''}${Math.abs(d)}</span>`; }).join(' · ')}</small></span></button>`;
-  h += renderCalTile() + renderBeach(true);
+  h += renderCalTile() + renderBeach(true) + renderAgentTile();
   h += `</div>`;
   return h + `</div></div>`;
 }
@@ -1548,6 +1621,7 @@ function render(){
   const hist = mode==='history', ov = mode==='overview', rv = mode==='reminders', lt = mode==='later', sp = mode==='shopping', sh2 = mode==='shophist', bp = mode==='beach', np = mode==='notes', kp = mode==='kids', cp = mode==='calendar';
   $('#top').style.display = (hist||ov||rv||lt||sp||sh2||bp||np||kp||cp) ? 'none' : 'flex';
   $('#qa').style.display = (hist||ov||rv||lt||sp||sh2||bp||np||kp||cp) ? 'none' : 'flex';
+  if(mode==='agents'){ $('#top').style.display = 'none'; $('#qa').style.display = 'none'; agRender(); return; }
   if(hist){ $('#rest').innerHTML = renderHistory(); return; }
   if(ov){ $('#rest').innerHTML = renderOverview(); return; }
   if(rv){ $('#rest').innerHTML = renderReminders(); return; }
@@ -2291,8 +2365,10 @@ function startSync(){
     () => { synced = false; render(); });
   db.doc('settings/app').onSnapshot(d => { if(d.exists){ settings = {...settings, ...d.data()}; render(); } }, ()=>{});
   sub('people', v=>people=v); sub('projects', v=>projects=v); sub('tasks', v=>tasks=v); sub('shopping', v=>shop=v); sub('beach', v=>beach=v); sub('notes', v=>notes=v); sub('kids', v=>kids=v); sub('kid_points', v=>kidPts=v); sub('mark_labels', v=>markLabels=v); sub('day_marks', v=>marks=v);
+  // Deferred: startSync runs inside onAuthStateChange, where awaiting getSession() can deadlock.
+  setTimeout(() => { agStart(); if(agFromUrl(location.href)) history.replaceState(null, '', location.pathname); }, 0);
 }
-function stopSync(){ if(db && db.teardown) db.teardown(); db = null; synced = null; }
+function stopSync(){ if(db && db.teardown) db.teardown(); db = null; synced = null; agStop(); }
 
 function showApp(){
   $('#loginwrap').style.display = 'none';
@@ -2320,6 +2396,290 @@ sb.auth.onAuthStateChange((event, session) => {
   if(session) showApp(); else showLogin();
 });
 sb.auth.getSession().then(({data}) => { if(data.session) showApp(); else showLogin(); });
+
+/* ---------- Agents: feed of cards, approvals strip, chat (via agent-gateway) ---------- */
+const AG_FN = SUPABASE_URL + '/functions/v1/agent-gateway';
+const AG_SEV = {info:{c:'#2FA66A', l:'Info', e:'🟢'}, watch:{c:'#E8A317', l:'Watch', e:'🟡'}, alert:{c:'#E0473A', l:'Alert', e:'🔴'}};
+const AG_KIND = {brief:'Brief', alert:'Alert', report:'Report', chat_reply:'Reply', draft:'Draft'};
+const AG_APPR = {staff_message:'💬 Message to staff', bonus:'💰 Bonus', memory_save:'🧠 Remember this', other:'📝 Needs your OK'};
+const AG_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3"/></svg>';
+
+async function agToken(){ const {data} = await sb.auth.getSession(); return data.session ? data.session.access_token : ''; }
+async function agCall(method, path, body){
+  const headers = {authorization: 'Bearer ' + await agToken()};
+  if(body) headers['content-type'] = 'application/json';
+  const r = await fetch(AG_FN + path, {method, headers, body: body ? JSON.stringify(body) : undefined});
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok) throw new Error(j.error || ('error ' + r.status));
+  return j;
+}
+const agCur = () => agAgents.find(a => a.slug === agSlug) || agAgents[0] || null;
+const agUnread = () => agCards.filter(c => !c.read_at).length;
+
+async function agLoad(){
+  const my = ++agSeq;
+  try{
+    const {data: ags, error} = await sb.from('agents').select('id,slug,name,description,status').order('created_at');
+    if(error) throw error;
+    if(my !== agSeq) return;
+    agAgents = ags || [];
+    if(!agSlug || !agAgents.some(a => a.slug === agSlug)) agSlug = agAgents[0] ? agAgents[0].slug : null;
+    const a = agCur();
+    if(a){
+      const [feed, ap, ms] = await Promise.all([
+        agCall('GET', '/feed?agent=' + encodeURIComponent(a.slug) + '&limit=40'),
+        sb.from('agent_approvals').select('id,kind,payload,status,created_at,card_id,agent_cards(headline,shop,deleted_at)').eq('agent_id', a.id).eq('status', 'pending').order('created_at', {ascending:false}),
+        sb.from('agent_messages').select('id,role,channel,content,created_at').eq('agent_id', a.id).order('created_at', {ascending:false}).limit(60)
+      ]);
+      if(my !== agSeq) return;
+      if(ap.error) throw ap.error;
+      if(ms.error) throw ms.error;
+      const hadMsgs = agMsgs.filter(m => !m.pending).length;
+      agCards = feed.cards || [];
+      agAppr = (ap.data || []).filter(x => !(x.agent_cards && x.agent_cards.deleted_at));
+      agMsgs = (ms.data || []).reverse();
+      if(agMsgs.length > hadMsgs && agTab === 'chat') agScroll = true;
+    } else { agCards = []; agAppr = []; agMsgs = []; }
+    agErr = ''; agAt = Date.now();
+  }catch(e){ if(my !== agSeq) return; agErr = 'Couldn’t load agents: ' + (e && e.message ? e.message : e); }
+  agLoaded = true;
+  if(mode === 'agents' && agOpenId){ const c = agCards.find(x => x.id === agOpenId); if(c && !c.read_at) agMarkRead(c); }
+  render();
+}
+function agKick(){ clearTimeout(agTimer); agTimer = setTimeout(agLoad, 300); }
+function agStart(){
+  agChans.forEach(c => sb.removeChannel(c)); agChans = [];
+  agLoad();
+  ['agent_cards', 'agent_approvals', 'agent_messages'].forEach(t => {
+    agChans.push(sb.channel('rt-' + t).on('postgres_changes', {event:'*', schema:'public', table:t}, agKick).subscribe());
+  });
+}
+function agStop(){
+  agChans.forEach(c => sb.removeChannel(c)); agChans = [];
+  agSeq++; agAgents = []; agCards = []; agAppr = []; agMsgs = []; agLoaded = false; agErr = '';
+}
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && agChans.length && Date.now() - agAt > 50*60e3) agKick(); });
+
+function agOpenSection(slug, cardId){
+  if(slug && /^[a-z0-9-]{1,40}$/.test(slug)) agSlug = slug;
+  agTab = 'feed'; agOpenId = cardId && /^[0-9a-f-]{36}$/i.test(cardId) ? cardId : null;
+  mode = 'agents'; tq = null; render(); window.scrollTo({top:0});
+  if(agLoaded) agKick();
+}
+function agFromUrl(u){
+  try{ const q = new URL(u, location.href).searchParams; if(q.has('agents')){ agOpenSection(q.get('agents'), q.get('card')); return true; } }catch(_){}
+  return false;
+}
+
+function agWhen(iso){
+  const ms = Date.parse(iso); if(!ms) return '';
+  return dayLabel(sydYmd(ms)) + ' · ' + timeOf(ms);
+}
+function agShop(s){
+  if(!s) return '';
+  const t = String(s), cls = /mobiletek/i.test(t) ? 'mt' : /mcc|eastern/i.test(t) ? 'mcc' : '';
+  return `<span class="agshop ${cls}">${esc(t)}</span>`;
+}
+// Small, safe markdown: headings, bold/italic/code, bullet + numbered lists, pipe tables. Everything is escaped first.
+function agMd(src){
+  const inl = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<i>$2</i>').replace(/`([^`]+)`/g, '<code>$1</code>');
+  const TR = /^\s*\|.*\|\s*$/, SEP = /^\s*\|[\s:|-]+\|\s*$/, UL = /^\s*[-*•]\s+/, OL = /^\s*\d+[.)]\s+/, HD = /^(#{1,4})\s+(.*)/;
+  const lines = String(src || '').replace(/\r/g, '').split('\n'); let h = '', i = 0;
+  while(i < lines.length){
+    const l = lines[i]; let m;
+    if(!l.trim()){ i++; continue; }
+    if(TR.test(l)){
+      const rows = []; while(i < lines.length && TR.test(lines[i])) rows.push(lines[i++]);
+      const head = rows.length > 1 && SEP.test(rows[1]);
+      const cells = r => r.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
+      h += '<div class="agtbl"><table>' + rows.filter(r => !SEP.test(r)).map((r, k) => { const tg = head && k === 0 ? 'th' : 'td'; return '<tr>' + cells(r).map(c => `<${tg}>${inl(c)}</${tg}>`).join('') + '</tr>'; }).join('') + '</table></div>';
+      continue;
+    }
+    if((m = l.match(HD))){ h += `<h5>${inl(m[2])}</h5>`; i++; continue; }
+    if(UL.test(l) || OL.test(l)){
+      const re = UL.test(l) ? UL : OL, tg = re === UL ? 'ul' : 'ol'; let it = '';
+      while(i < lines.length && re.test(lines[i])) it += '<li>' + inl(lines[i++].replace(re, '')) + '</li>';
+      h += `<${tg}>${it}</${tg}>`; continue;
+    }
+    const p = [];
+    do { p.push(inl(lines[i++])); } while(i < lines.length && lines[i].trim() && !TR.test(lines[i]) && !HD.test(lines[i]) && !UL.test(lines[i]) && !OL.test(lines[i]));
+    h += '<p>' + p.join('<br>') + '</p>';
+  }
+  return h;
+}
+
+function agDecideBtns(id, labels){
+  const l = labels || {};
+  const one = d => { const armed = agArm === id + ':' + d; return `<button type="button" class="agbtn ${d==='approve'?'ok':'no'}${armed?' armed':''}" data-agdecide="${esc(id)}" data-agd="${d}">${armed ? 'Tap again to ' + (d==='approve'?'approve':'reject') : (d==='approve' ? '✅ ' + esc(l.approve || 'Approve') : '❌ ' + esc(l.reject || 'Reject'))}</button>`; };
+  return one('approve') + one('reject');
+}
+function agApprRow(a){
+  const p = a.payload && typeof a.payload === 'object' ? a.payload : {};
+  const to = p.to || p.staff || p.recipient || '';
+  const text = p.text || p.message || p.body || p.note || '';
+  const head = a.agent_cards && a.agent_cards.headline;
+  return `<div class="agappr"><div class="agak">${AG_APPR[a.kind] || AG_APPR.other}${to ? ` → <b>${esc(String(to))}</b>` : ''}</div>`
+    + (head ? `<div class="agah">${esc(head)}</div>` : '')
+    + (text ? `<div class="agat">${esc(String(text).slice(0, 800))}</div>` : '')
+    + `<div class="agacts">${agDecideBtns(a.id)}</div>`
+    + `<div class="agfine">Nothing is sent yet: this only records your answer.</div></div>`;
+}
+function agCard(c){
+  const sv = AG_SEV[c.severity] || AG_SEV.info, open = agOpenId === c.id;
+  const pend = new Set(agAppr.map(a => a.id));
+  const acts = (Array.isArray(c.actions) ? c.actions : []).filter(a => a && a.approval_id && pend.has(a.approval_id));
+  const ids = [...new Set(acts.map(a => a.approval_id))];
+  const btns = ids.map(id => { const ap = acts.find(a => a.approval_id === id && a.type === 'approve'), rj = acts.find(a => a.approval_id === id && a.type === 'reject'); return agDecideBtns(id, {approve: ap && ap.label, reject: rj && rj.label}); }).join('');
+  const preview = c.summary || c.glance || '';
+  const img = c.image_url ? `<a class="agimgl" href="${esc(c.image_url)}" target="_blank" rel="noopener"><img class="agimg" src="${esc(c.image_url)}" alt="${esc(c.headline || '')}" loading="lazy" draggable="false"></a>` : '';
+  let body = '';
+  if(open){
+    body = (c.summary ? `<p class="agsum">${esc(c.summary)}</p>` : '') + (c.body_md ? agMd(c.body_md) : (!c.summary && c.glance ? `<p>${esc(c.glance)}</p>` : ''));
+    body = body ? `<div class="agbody">${body}</div>` : '';
+  }
+  return `<div class="agsw" data-agsw="${esc(c.id)}"><button type="button" class="agdel" data-agdel="${esc(c.id)}" tabindex="-1" aria-label="Delete card">${AG_TRASH}Delete</button>`
+    + `<article class="agcard" style="--sev:${sv.c}"><button type="button" class="aghead" data-agopen="${esc(c.id)}" aria-expanded="${open}">`
+    + `<span class="agmeta"><span class="agsev">${sv.e} ${sv.l}</span>${AG_KIND[c.kind] ? `<span class="agkind">${AG_KIND[c.kind]}</span>` : ''}${agShop(c.shop)}<span class="agtime">${esc(agWhen(c.created_at))}</span>${!c.read_at ? '<i class="agdot" aria-label="Unread"></i>' : ''}</span>`
+    + `<b class="aghl">${esc(c.headline || '')}</b>${!open && preview ? `<span class="agprev">${esc(preview)}</span>` : ''}</button>`
+    + img + body + (btns ? `<div class="agacts">${btns}</div>` : '') + `</article></div>`;
+}
+function agChat(a){
+  let h = '<div class="agchat" id="agChat">';
+  if(!agMsgs.length) h += `<div class="empty"><b>Ask ${esc(a.name)}</b>Sales, targets, repairs or staff. Type below.</div>`;
+  agMsgs.forEach(m => {
+    const u = m.role === 'user';
+    h += `<div class="agm ${u ? 'u' : 'a'}${m.pending ? ' pending' : ''}"><div class="b">${u ? esc(m.content) : agMd(m.content)}</div><small>${m.pending ? 'Sending…' : esc(agWhen(m.created_at))}${m.channel && m.channel !== 'daybook' ? ' · ' + esc(m.channel) : ''}</small></div>`;
+  });
+  h += '</div>';
+  if(!agMsgs.some(m => m.role === 'agent')) h += `<div class="agnote">⏳ Replies aren’t switched on yet. Your messages are saved and ${esc(a.name)} will answer once it’s connected.</div>`;
+  h += `<form class="agform" id="agForm" autocomplete="off"><textarea id="agIn" rows="1" maxlength="2000" placeholder="Message ${esc(a.name)}…" enterkeyhint="send" aria-label="Message">${esc(agDraft)}</textarea><button type="submit" aria-label="Send"${agSending ? ' disabled' : ''}>${I.arrow}</button></form>`;
+  return h;
+}
+function renderAgents(){
+  const a = agCur(), unread = agUnread();
+  let h = `<div class="agpage"><button class="back" data-back>${I.left}Back</button><div class="head"><h3 style="font-size:28px">🤖 Agents</h3>${agTab === 'feed' && unread ? '<button type="button" class="link" data-agallread>Mark all read</button>' : ''}</div>`;
+  if(agErr) h += `<div class="warn">${esc(agErr)}</div>`;
+  if(!agLoaded) return h + `<div class="empty"><b>Loading…</b></div></div>`;
+  if(!a) return h + `<div class="empty"><b>No agents yet</b>Once an agent is set up it shows here.</div></div>`;
+  h += `<div class="agpick" role="tablist">${agAgents.map(x => `<button type="button" data-agpick="${esc(x.slug)}" aria-pressed="${x.slug === a.slug}">${esc(x.name)}${x.status === 'paused' ? '<small>Paused</small>' : ''}</button>`).join('')}</div>`;
+  h += `<div class="seg agseg"><button type="button" data-agtab="feed" aria-pressed="${agTab === 'feed'}">📋 Feed${unread ? `<span class="agn">${unread}</span>` : ''}</button><button type="button" data-agtab="chat" aria-pressed="${agTab === 'chat'}">💬 Chat</button></div>`;
+  if(agTab === 'chat') return h + agChat(a) + '</div>';
+  if(agAppr.length) h += `<div class="agstrip"><div class="agsth">✋ Needs your OK · ${agAppr.length}</div>${agAppr.map(agApprRow).join('')}</div>`;
+  h += agCards.length ? `<div class="aglist">${agCards.map(agCard).join('')}</div>` : `<div class="empty"><b>No cards yet</b>${esc(a.name)}’s briefs and alerts will land here.</div>`;
+  return h + '</div>';
+}
+function agGrow(ta){ ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 140) + 'px'; }
+function agRender(){
+  const ae = document.activeElement, had = ae && ae.id === 'agIn';
+  $('#rest').innerHTML = renderAgents();
+  const ta = $('#agIn');
+  if(ta){ agGrow(ta); if(had){ ta.focus(); const n = ta.value.length; try{ ta.setSelectionRange(n, n); }catch(_){} } }
+  if(agScroll && agTab === 'chat'){ agScroll = false; requestAnimationFrame(() => window.scrollTo({top: document.body.scrollHeight})); }
+}
+function renderAgentTile(){
+  if(!agAgents.length) return '';
+  const n = agUnread(), ap = agAppr.length, a = agCur();
+  const sub = n || ap ? [n ? n + ' new' : '', ap ? ap + ' to approve' : ''].filter(Boolean).join(' · ') : (agCards.length ? 'All caught up' : (a ? a.name : 'Agents'));
+  return `<button type="button" class="laterbar agtool" data-agents aria-label="Open agents"><span class="lic">🤖</span><span class="ltxt"><b>Agents</b><small>${esc(sub)}</small></span>${n + ap ? `<span class="lcount hot">${n + ap}</span>` : `<span class="lchev">${I.right}</span>`}</button>`;
+}
+
+async function agMarkRead(c){
+  c.read_at = new Date().toISOString();
+  try{ await agCall('POST', '/cards/' + c.id + '/read'); }catch(_){ c.read_at = null; }
+}
+async function agDelete(id){
+  const c = agCards.find(x => x.id === id); if(!c) return;
+  agCards = agCards.filter(x => x !== c); if(agOpenId === id) agOpenId = null; render();
+  try{ await agCall('DELETE', '/cards/' + id); }
+  catch(e){ toast('Couldn’t delete: ' + e.message); agKick(); return; }
+  toast('Card deleted', 'Undo', async () => {
+    agCards = [...agCards, c].sort((x, y) => String(y.created_at).localeCompare(String(x.created_at))); render();
+    try{ await agCall('POST', '/cards/' + id + '/restore'); }catch(e){ toast('Couldn’t bring it back: ' + e.message); }
+    agKick();
+  });
+}
+async function agDecide(id, d){
+  const key = id + ':' + d;
+  if(agArm !== key){ agArm = key; clearTimeout(agArmT); agArmT = setTimeout(() => { agArm = null; if(mode === 'agents') render(); }, 3500); render(); return; }
+  agArm = null; clearTimeout(agArmT);
+  const before = agAppr; agAppr = agAppr.filter(x => x.id !== id); render();
+  try{ await agCall('POST', '/approvals/' + id + '/decide', {decision: d}); toast(d === 'approve' ? 'Approved ✅' : 'Rejected ❌'); }
+  catch(e){ agAppr = before; render(); toast('Couldn’t save: ' + e.message); }
+  agKick();
+}
+async function agSend(){
+  const t = agDraft.trim(), a = agCur(); if(!t || agSending || !a) return;
+  agSending = true;
+  const tmp = {id:'tmp' + Date.now(), role:'user', channel:'daybook', content:t, created_at:new Date().toISOString(), pending:true};
+  agMsgs = [...agMsgs, tmp]; agDraft = ''; agScroll = true; render();
+  try{ await agCall('POST', '/message', {agent: a.slug, text: t}); }
+  catch(e){ agMsgs = agMsgs.filter(m => m !== tmp); agDraft = t; toast('Couldn’t send: ' + e.message); }
+  agSending = false; render(); agKick();
+}
+
+$('#app').addEventListener('click', e => {
+  const b = e.target.closest('button'); if(!b) return;
+  if('agents' in b.dataset){ agOpenSection(); return; }
+  if(mode !== 'agents') return;
+  if(b.dataset.agdel){ agDelete(b.dataset.agdel); return; }
+  const sw = b.closest('.agsw');
+  if(sw && sw.classList.contains('swiped')){ agCloseSwipes(); return; }
+  if(b.dataset.agopen){
+    const id = b.dataset.agopen; agOpenId = agOpenId === id ? null : id;
+    const c = agCards.find(x => x.id === id); if(c && agOpenId && !c.read_at) agMarkRead(c);
+    render();
+  }
+  else if(b.dataset.agdecide) agDecide(b.dataset.agdecide, b.dataset.agd === 'reject' ? 'reject' : 'approve');
+  else if(b.dataset.agtab){ agTab = b.dataset.agtab === 'chat' ? 'chat' : 'feed'; agScroll = agTab === 'chat'; render(); if(agTab === 'feed') window.scrollTo({top:0}); }
+  else if(b.dataset.agpick){ if(b.dataset.agpick !== agSlug){ agSlug = b.dataset.agpick; agOpenId = null; agCards = []; agAppr = []; agMsgs = []; render(); agLoad(); } }
+  else if('agallread' in b.dataset){ agCards.filter(c => !c.read_at).forEach(agMarkRead); render(); }
+});
+$('#app').addEventListener('submit', e => { if(e.target.id !== 'agForm') return; e.preventDefault(); agSend(); });
+$('#app').addEventListener('input', e => { if(e.target.id !== 'agIn') return; agDraft = e.target.value; agGrow(e.target); });
+$('#app').addEventListener('keydown', e => { if(e.target.id === 'agIn' && e.key === 'Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); agSend(); } });
+function agCloseSwipes(except){ document.querySelectorAll('.agsw.swiped').forEach(el => { if(el !== except){ el.classList.remove('swiped'); const c = el.querySelector('.agcard'); if(c) c.style.transform = ''; } }); }
+/* agent card swipe: right-to-left reveals the red Delete (touch and mouse) */
+(function(){
+  const app = document.getElementById('app'); const W = 92;
+  let st = null, just = false;
+  app.addEventListener('pointerdown', e => {
+    if(mode !== 'agents' || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    const c = e.target.closest('.agcard');
+    if(!c || e.target.closest('.agbtn')){ if(!e.target.closest('.agsw')) agCloseSwipes(); st = null; return; }
+    const it = c.closest('.agsw'); agCloseSwipes(it);
+    st = {id:e.pointerId, x:e.clientX, y:e.clientY, c, it, lock:null, base: it.classList.contains('swiped') ? -W : 0, dx:0};
+  });
+  app.addEventListener('pointermove', e => {
+    if(!st || e.pointerId !== st.id) return;
+    const dx = e.clientX - st.x, dy = e.clientY - st.y;
+    if(st.lock === null){
+      if(Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.4){ st.lock = 'x'; try{ st.c.setPointerCapture(e.pointerId); }catch(_){} }
+      else if(Math.abs(dy) > 8){ st = null; return; }
+      else return;
+    }
+    const x = Math.max(-W - 24, Math.min(0, st.base + dx));
+    st.dx = dx; st.it.classList.toggle('peek', x < 0);
+    st.c.style.transition = 'none'; st.c.style.transform = 'translateX(' + x + 'px)';
+  });
+  const end = e => {
+    if(!st || e.pointerId !== st.id) return;
+    const {c, it, lock, base, dx} = st; st = null;
+    c.style.transition = ''; it.classList.remove('peek');
+    if(lock !== 'x') return;
+    just = true; setTimeout(() => { just = false; }, 350);
+    if(base + dx < -W/2){ it.classList.add('swiped'); c.style.transform = 'translateX(' + (-W) + 'px)'; }
+    else { it.classList.remove('swiped'); c.style.transform = ''; }
+  };
+  app.addEventListener('pointerup', end);
+  app.addEventListener('pointercancel', end);
+  app.addEventListener('click', e => {
+    if(mode !== 'agents') return;
+    if(just){ e.stopPropagation(); e.preventDefault(); return; }
+    const sw = e.target.closest('.agsw');
+    if(sw && sw.classList.contains('swiped') && !e.target.closest('.agdel')){ e.stopPropagation(); e.preventDefault(); agCloseSwipes(); }
+  }, true);
+})();
+if('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => { if(e.data && e.data.type === 'open' && e.data.url) agFromUrl(e.data.url); });
 
 let swReg = null;
 function renderUpdateBanner(show){
