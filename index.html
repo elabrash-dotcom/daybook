@@ -854,7 +854,7 @@ let histLimit = 60, showSomeday = false, tq = null, tsFocus = false;
 // Agents section state (see the Agents block further down)
 let agAgents = [], agSlug = null, agCards = [], agAppr = [], agMsgs = [], agTab = 'feed', agOpenId = null;
 let agLoaded = false, agErr = '', agAt = 0, agChans = [], agTimer = null, agSending = false, agDraft = '', agScroll = false, agArm = null, agArmT = null, agSeq = 0;
-let agStatus = null, agRuns = [], agMonthCost = null, agBusy = '';
+let agStatus = null, agRuns = [], agMonthCost = null, agBusy = '', agStatusAt = 0, agImgAt = 0, agSig = '';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -2461,20 +2461,29 @@ async function agLoad(){
       if(my !== agSeq) return;
       agRuns = rr.data || [];
       agMonthCost = mc.data ? mc.data.reduce((t, r) => t + (Number(r.cost_usd) || 0), 0) : null;
-      if(agTab === 'setup') agLoadStatus();
+      if(agTab === 'setup' && Date.now() - agStatusAt > 20000) agLoadStatus();
       const hadMsgs = agMsgs.filter(m => !m.pending).length;
-      agCards = feed.cards || [];
+      // Signed picture links change on every fetch; keep the old one for the same picture so it doesn't reload (flash).
+      const oldUrl = {}; agCards.forEach(c => { if(c.image_url) oldUrl[c.id + '|' + c.image_path] = c.image_url; });
+      agCards = (feed.cards || []).map(c => { const u = oldUrl[c.id + '|' + c.image_path]; return u && Date.now() - agImgAt < 45*60e3 ? {...c, image_url: u} : c; });
+      if(agCards.some(c => c.image_url && !Object.values(oldUrl).includes(c.image_url))) agImgAt = Date.now();
       agAppr = (ap.data || []).filter(x => !(x.agent_cards && x.agent_cards.deleted_at));
       agMsgs = (ms.data || []).reverse();
       if(agMsgs.length > hadMsgs && agTab === 'chat') agScroll = true;
     } else { agCards = []; agAppr = []; agMsgs = []; }
     agErr = ''; agAt = Date.now();
   }catch(e){ if(my !== agSeq) return; agErr = 'Couldn’t load agents: ' + (e && e.message ? e.message : e); }
+  const wasLoaded = agLoaded;
   agLoaded = true;
   if(mode === 'agents' && agOpenId){ const c = agCards.find(x => x.id === agOpenId); if(c && !c.read_at) agMarkRead(c); }
+  // Only redraw when something actually changed, so pictures and cards don't flicker.
+  const sig = JSON.stringify([agCards.map(c => [c.id, c.read_at, c.headline, c.image_path, (c.actions || []).length]), agAppr.map(x => x.id), agMsgs.map(m => m.id), agRuns.map(r => [r.id, r.status, r.cost_usd]), agErr, agAgents.map(x => x.slug + x.status), agMonthCost]);
+  if(wasLoaded && sig === agSig) return;
+  agSig = sig;
   render();
 }
 function agKick(){ clearTimeout(agTimer); agTimer = setTimeout(agLoad, 300); }
+window.__agReload = agKick;
 function agStart(){
   agChans.forEach(c => sb.removeChannel(c)); agChans = [];
   agLoad();
@@ -2624,6 +2633,7 @@ async function agLoadStatus(){
   const a = agCur(); if(!a) return;
   try{ agStatus = await agCall('GET', '/status?agent=' + encodeURIComponent(a.slug)); }
   catch(e){ agStatus = {error: e.message}; }
+  agStatusAt = Date.now();
   if(mode === 'agents' && agTab === 'setup') render();
 }
 function agStep(n, icon, title, ok, sub, btn){
@@ -2800,8 +2810,8 @@ setInterval(() => { if(document.visibilityState === 'visible') checkHtml(); }, 9
 window.addEventListener('load', () => setTimeout(checkHtml, 1500));
 async function checkForUpdate(manual){
   checkHtml();
-  if(!swReg) return;
-  try{ await swReg.update(); }catch(_){}
+  if(!swReg){ if(manual) toast('Checking… if nothing changes, close and reopen Daybook.'); return; }
+  try{ await Promise.race([swReg.update(), new Promise(r => setTimeout(r, 6000))]); }catch(_){}
   setTimeout(() => {
     if(swReg.waiting){ renderUpdateBanner(true); if(manual) toast('Update found — tap Refresh above.'); }
     else if(manual && !document.querySelector('.updbar')){ toast('You’re on the latest version.'); }
