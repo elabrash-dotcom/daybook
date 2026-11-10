@@ -290,6 +290,32 @@ export async function runNow(sb: SupabaseClient, row: AgentRow, label: string) {
   return data;
 }
 
+// One-off cost/quality test: same prompt as a schedule, but on a cheaper model. Nothing else changes (agent and schedules stay as they are).
+const TEST_MODELS: Record<string, { id: "claude-haiku-5-5" | "claude-sonnet-5-5"; effort: "low" | "medium" }> = {
+  haiku: { id: "claude-haiku-5-5", effort: "low" },
+  sonnet: { id: "claude-sonnet-5-5", effort: "low" },
+};
+export async function runTest(sb: SupabaseClient, row: AgentRow, label: string, modelKey: string) {
+  const m = TEST_MODELS[modelKey];
+  const sched = SCHEDULES.runs.find((r) => r.label === label);
+  if (!m || !sched) throw new HttpError(400, "unknown test");
+  const cfg = row.config ?? {};
+  if (!row.anthropic_agent_id || !row.anthropic_environment_id || !cfg.rules_store_id) throw new HttpError(409, "Set up the agent first");
+  if (!cfg.sw_cred_id) throw new HttpError(409, "Connect StockWise first");
+  const s = await client().beta.sessions.create({
+    agent: { type: "agent_with_overrides", id: row.anthropic_agent_id, model: m },
+    environment_id: row.anthropic_environment_id, vault_ids: [cfg.vault_id!], resources: memResources(cfg), budget: budget(),
+    title: `StockWise · ${sched.name} · ${modelKey} test`, metadata: { kind: "test", model: modelKey, daybook_agent: row.slug },
+    initial_events: [{ type: "user.message", content: [{ type: "text", text: `[${modelKey.toUpperCase()} TEST] Start every card headline with "${modelKey.toUpperCase()}: ". ` + sched.prompt }] }],
+  });
+  const { data, error } = await sb.from("agent_runs").insert({
+    owner_id: row.owner_id, agent_id: row.id, trigger: "manual", schedule_label: `${label}-${modelKey}`, status: "running",
+    session_id: s.id, started_at: new Date().toISOString(),
+  }).select("id, session_id").single();
+  if (error) throw error;
+  return data;
+}
+
 export async function sendChat(sb: SupabaseClient, row: AgentRow, text: string) {
   if (!row.anthropic_agent_id || !row.anthropic_environment_id) throw new HttpError(409, "Set up the agent first");
   const c = client();
@@ -348,7 +374,7 @@ export async function syncSession(sb: SupabaseClient, sessionId: string) {
   if (!row) return;
   const cfg: Cfg = row.config ?? {};
   const isChat = s.metadata?.kind === "chat";
-  const label = isChat ? "chat" : Object.entries(cfg.deployments ?? {}).find(([, v]) => v === s.deployment_id)?.[0] ?? null;
+  const label = isChat ? "chat" : s.metadata?.kind === "test" ? `test-${s.metadata.model}` : Object.entries(cfg.deployments ?? {}).find(([, v]) => v === s.deployment_id)?.[0] ?? null;
 
   // Latest events (newest first) tell us why the session went idle, and hold chat replies.
   const page = await c.beta.sessions.events.list(sessionId, { order: "desc", limit: 100 });
@@ -367,8 +393,17 @@ export async function syncSession(sb: SupabaseClient, sessionId: string) {
     owner_id: row.owner_id, agent_id: row.id, session_id: sessionId, status, cost_usd: cents / 100, error,
     finished_at: status === "running" ? null : new Date().toISOString(),
   };
-  if (!existing) Object.assign(patch, { trigger: isChat ? "chat" : "schedule", schedule_label: label, started_at: s.created_at });
-  const { data: run } = await sb.from("agent_runs").upsert(patch, { onConflict: "session_id" }).select("id, started_at").single();
+  let run: { id: string; started_at: string } | null = null;
+  if (existing) {
+    const { data: u, error: ue } = await sb.from("agent_runs").update(patch).eq("id", existing.id).select("id, started_at").single();
+    if (ue) throw ue;
+    run = u;
+  } else {
+    const { data: i, error: ie } = await sb.from("agent_runs")
+      .insert({ ...patch, trigger: isChat ? "chat" : "schedule", schedule_label: label, started_at: s.created_at }).select("id, started_at").single();
+    if (ie) throw ie;
+    run = i;
+  }
 
   if (!isChat && status !== "running" && run && existing?.status !== status) {
     // Link this run's cards to it.
@@ -406,4 +441,16 @@ export async function saveNote(row: AgentRow, title: string, text: string) {
   const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 50) || "note";
   const day = new Date().toISOString().slice(0, 10);
   await client().beta.memoryStores.memories.create(store, { path: `/notes/${day}-${slug}-${rand(3)}.md`, content: `# ${title}\n\n${text}\n` });
+}
+
+/* Self-heal: refresh runs still marked "running" (a webhook can be missed). Called when the Setup tab opens. */
+export async function healRuns(sb: SupabaseClient, row: AgentRow) {
+  if (!hasKey()) return 0;
+  const { data } = await sb.from("agent_runs").select("session_id").eq("agent_id", row.id).eq("status", "running")
+    .not("session_id", "is", null).order("created_at", { ascending: false }).limit(5);
+  let n = 0;
+  for (const r of data ?? []) {
+    try { await syncSession(sb, r.session_id as string); n++; } catch (e) { console.error("heal failed", r.session_id, e instanceof Error ? e.message : e); }
+  }
+  return n;
 }

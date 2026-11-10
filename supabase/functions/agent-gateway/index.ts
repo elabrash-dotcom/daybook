@@ -70,8 +70,8 @@ async function ingestCard(req: Request) {
   const severity = SEVERITIES.includes(String(b.severity)) ? String(b.severity) : "info";
   const { data: card, error } = await sb.from("agent_cards").insert({
     owner_id: row.owner_id, agent_id: row.id, kind, severity, shop: str(b.shop, 60) || null, headline,
-    glance: str(b.glance, 280) || null, summary: str(b.summary, 1000) || null, body_md: str(b.body_md, 20000) || null,
-    data: b.data && typeof b.data === "object" ? b.data : null,
+    glance: str(b.glance, 280), summary: str(b.summary, 1000), body_md: str(b.body_md, 20000),
+    data: b.data && typeof b.data === "object" ? b.data : {},
   }).select("id").single();
   if (error) throw error;
   const patch: Record<string, unknown> = {};
@@ -187,6 +187,7 @@ Deno.serve(async (req) => {
         setup: !!(row.anthropic_agent_id && cfg.deployments), setup_at: cfg.setup_at ?? null,
         stockwise: !!cfg.sw_cred_id, stockwise_at: cfg.sw_connected_at ?? null,
         schedules_on: !!cfg.schedules_on, schedules: await cma.scheduleList(row),
+        synced: await cma.healRuns(sb, row),
       });
     }
     if (path.startsWith("/admin/") && req.method === "POST") {
@@ -325,6 +326,7 @@ Deno.serve(async (req) => {
       const body = await req.json().catch(() => ({}));
       const row = await agentRow(who.ownerId, body?.agent);
       const label = typeof body?.label === "string" ? body.label : "morning";
+      if (typeof body?.model === "string") return json({ ok: true, run: await cma.runTest(sb, row, label, body.model) });
       return json({ ok: true, run: await cma.runNow(sb, row, label) });
     }
 
