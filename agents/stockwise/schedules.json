@@ -1,0 +1,20 @@
+{
+  "timezone": "Australia/Sydney",
+  "budget_usd_cents": "100",
+  "runs": [
+    { "label": "morning", "name": "Morning brief", "cron": "30 8 * * *",
+      "prompt": "Morning brief. Yesterday's result per shop vs its daily target, month-to-date vs target-to-date (amount and %), and what each shop needs per trading day to finish the month. Note open repair tickets. One combined brief card with a pop-scoreboard poster; add an alert card only if a shop is clearly behind." },
+    { "label": "early", "name": "Early read", "cron": "0 11 * * *",
+      "prompt": "Early read at 11:00. Today's revenue so far per shop vs its daily target. Post one short brief card. Severity watch if a shop is unusually quiet; info otherwise." },
+    { "label": "midday", "name": "Midday pace check", "cron": "0 13 * * *",
+      "prompt": "Midday pace check at 13:00. Today's revenue so far per shop vs daily target and the pace needed for the afternoon. One brief card; alert only if a shop is far behind." },
+    { "label": "close", "name": "Close of day (Mon-Sat)", "cron": "15 18 * * 1-6",
+      "prompt": "Close-of-day report. Today's final revenue per shop vs daily target, month-to-date vs target-to-date, cash percentage if StockWise has it, repairs/tickets, customers, and staff performance from store totals. One report card with a pop-scoreboard poster." },
+    { "label": "close_sun", "name": "Close of day (Sunday)", "cron": "15 16 * * 0",
+      "prompt": "Sunday close-of-day report (both shops trade 10am-4pm). Today's final revenue per shop vs daily target and month-to-date vs target-to-date. One report card with a pop-scoreboard poster." },
+    { "label": "week", "name": "Monday week plan", "cron": "0 9 * * 1",
+      "prompt": "Monday week plan. Last week's result per shop vs target, this week's daily figure needed per shop to stay on track for the month, and two or three focus points backed by StockWise figures. One report card with a pop-scoreboard poster. If a staff message would help, add a draft card with a staff_message approval." },
+    { "label": "catchup", "name": "Catch-up plan (from the 20th)", "cron": "0 10 20-31 * *",
+      "prompt": "Catch-up check (runs from the 20th). Work out whether either shop's monthly target is at risk from real figures. If neither is at risk, post nothing and finish. If one is, post one alert card with the gap, the per-day figure needed for the remaining trading days, and practical steps (no discounting)." }
+  ]
+}
