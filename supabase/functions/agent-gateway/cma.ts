@@ -9,7 +9,7 @@ const SW_BASE = "https://mcp.stockwise.store";
 const SW_SCOPE = "inventory:read";
 const SUPA_HOST = new URL(Deno.env.get("SUPABASE_URL")!).host;
 export const GATEWAY_URL = `https://${SUPA_HOST}/functions/v1/agent-gateway`;
-const MODEL = "claude-opus-5-5";
+const MODEL = "claude-haiku-5-5"; // about 1c a run; tested against Opus on the morning brief
 // Only StockWise's read tools are switched on; its HR write tools stay off.
 const READ_TOOLS = ["query_metrics", "list_records", "get_record", "search_inventory"];
 
@@ -127,7 +127,7 @@ export async function setup(sb: SupabaseClient, row: AgentRow) {
   const agentBody = {
     name: "StockWise",
     description: "Watches Mobiletek and MCC Eastern Creek in StockWise and posts cards to Daybook.",
-    model: { id: MODEL, effort: "medium" as const },
+    model: { id: MODEL, effort: "low" as const },
     system: INSTRUCTIONS,
     mcp_servers: [{ type: "url" as const, name: "stockwise", url: MCP_URL }],
     tools: [
