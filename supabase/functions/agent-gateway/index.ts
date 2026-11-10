@@ -204,31 +204,41 @@ Deno.serve(async (req) => {
       return json({ error: "not found" }, 404);
     }
 
-    // GET /feed?agent=stockwise&limit=20  -> newest cards first (deleted cards are hidden)
+    // GET /feed?agent=stockwise&limit=15&from=&to=&shop=&unread=1  -> newest cards first (deleted cards are hidden).
+    // Returns { cards, has_more, unread }. Filters: from/to (ISO times), shop (text), unread=1.
     if (path === "/feed" && req.method === "GET") {
-      const limit = Math.min(Math.max(parseInt(url.searchParams.get("limit") ?? "20", 10) || 20, 1), 50);
+      const limit = Math.min(Math.max(parseInt(url.searchParams.get("limit") ?? "15", 10) || 15, 1), 100);
       const slug = url.searchParams.get("agent");
+      const from = url.searchParams.get("from"), to = url.searchParams.get("to"), shop = url.searchParams.get("shop");
       const cols = who.isDevice
         ? "id, kind, severity, shop, headline, glance, actions, read_at, created_at" // glasses: glance only
         : "id, agent_id, run_id, kind, severity, shop, headline, glance, summary, body_md, image_path, data, actions, read_at, created_at";
-      let q = sb.from("agent_cards").select(cols).eq("owner_id", who.ownerId).is("deleted_at", null).order("created_at", { ascending: false }).limit(limit);
+      let q = sb.from("agent_cards").select(cols).eq("owner_id", who.ownerId).is("deleted_at", null).order("created_at", { ascending: false }).limit(limit + 1);
+      let uq = sb.from("agent_cards").select("id", { count: "exact", head: true }).eq("owner_id", who.ownerId).is("deleted_at", null).is("read_at", null);
       if (slug) {
         const agentId = await agentIdFor(who.ownerId, slug);
         if (!agentId) return json({ error: "agent not found" }, 404);
         q = q.eq("agent_id", agentId);
+        uq = uq.eq("agent_id", agentId);
       }
-      const { data, error } = await q;
+      if (from && !Number.isNaN(Date.parse(from))) q = q.gte("created_at", from);
+      if (to && !Number.isNaN(Date.parse(to))) q = q.lt("created_at", to);
+      if (shop && /^[A-Za-z0-9 ]{1,40}$/.test(shop)) q = q.ilike("shop", `%${shop}%`);
+      if (url.searchParams.get("unread") === "1") q = q.is("read_at", null);
+      const [{ data, error }, { count: unread }] = await Promise.all([q, uq]);
       if (error) throw error;
-      const cards = data ?? [];
+      const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
+      const hasMore = rows.length > limit;
+      const cards = rows.slice(0, limit);
       if (!who.isDevice) {
-        for (const c of cards as unknown as Array<Record<string, unknown>>) {
-          if (c.image_path) {
-            const { data: s } = await sb.storage.from("agent-images").createSignedUrl(String(c.image_path), 3600);
-            c.image_url = s?.signedUrl ?? null;
-          }
+        const paths = cards.map((c) => c.image_path).filter(Boolean).map(String);
+        if (paths.length) {
+          const { data: signed } = await sb.storage.from("agent-images").createSignedUrls(paths, 3600);
+          const byPath = new Map((signed ?? []).map((x) => [x.path, x.signedUrl]));
+          for (const c of cards) if (c.image_path) c.image_url = byPath.get(String(c.image_path)) ?? null;
         }
       }
-      return json({ cards });
+      return json({ cards, has_more: hasMore, unread: unread ?? 0 });
     }
 
     // POST /message {agent, text}  -> stores the chat message and sends it to the agent's chat session
@@ -249,6 +259,17 @@ Deno.serve(async (req) => {
       try { await cma.sendChat(sb, row, text); }
       catch (e) { console.error("chat send failed", e instanceof Error ? e.message : e); return json({ status: "stored", message: data, note: "saved, but the agent could not be reached" }, 202); }
       return json({ status: "sent", message: data }, 202);
+    }
+
+    // POST /cards/read-all {agent} -> marks every unread card of that agent as read
+    if (path === "/cards/read-all" && req.method === "POST") {
+      const body = await req.json().catch(() => null);
+      const agentId = await agentIdFor(who.ownerId, body?.agent ?? null);
+      if (!agentId) return json({ error: "agent not found" }, 404);
+      const { error } = await sb.from("agent_cards").update({ read_at: new Date().toISOString() })
+        .eq("owner_id", who.ownerId).eq("agent_id", agentId).is("read_at", null).is("deleted_at", null);
+      if (error) throw error;
+      return json({ ok: true });
     }
 
     // POST /cards/:id/read

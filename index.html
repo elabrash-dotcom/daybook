@@ -787,6 +787,16 @@ body.askopen{overflow:hidden}
 .agrr span:nth-child(2){color:var(--ink-3);font-size:12.5px}
 .agrs{min-width:62px;text-align:right}
 .agrs.ok{color:#2FA66A}.agrs.bad{color:var(--danger)}
+.agfilt{display:flex;flex-wrap:wrap;gap:8px;padding:2px;align-items:center}
+.agfilt::-webkit-scrollbar{display:none}
+.agchip{flex:none;height:40px;padding:0 14px;border-radius:999px;background:var(--surface);font-weight:800;font-size:14.5px;box-shadow:var(--shadow);white-space:nowrap}
+.agchip[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.agdate{flex:none;height:40px;border:0;border-radius:999px;background:var(--surface);padding:0 12px;font:inherit;font-weight:800;font-size:14px;color:var(--ink);box-shadow:var(--shadow);min-width:132px}
+.agdate.on{background:var(--ink);color:var(--bg)}
+.agmore{width:100%;height:52px;border-radius:16px;background:var(--surface);box-shadow:var(--shadow);font-weight:800;font-size:16px}
+.agday{align-self:center;font-size:12.5px;font-weight:800;color:var(--ink-3);padding:4px 12px;border-radius:999px;background:var(--soft);margin:6px 0}
+.agtoggle{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;font:inherit;font-weight:800;font-size:16px}
+.agruns .agmore{height:46px;box-shadow:none;background:var(--soft)}
 </style>
 </head>
 <body>
@@ -854,7 +864,8 @@ let histLimit = 60, showSomeday = false, tq = null, tsFocus = false;
 // Agents section state (see the Agents block further down)
 let agAgents = [], agSlug = null, agCards = [], agAppr = [], agMsgs = [], agTab = 'feed', agOpenId = null;
 let agLoaded = false, agErr = '', agAt = 0, agChans = [], agTimer = null, agSending = false, agDraft = '', agScroll = false, agArm = null, agArmT = null, agSeq = 0;
-let agStatus = null, agRuns = [], agMonthCost = null, agBusy = '', agStatusAt = 0, agImgAt = 0, agSig = '';
+let agStatus = null, agRuns = [], agMonthCost = null, agBusy = '', agStatusAt = 0, agImgAt = 0, agSig = '', agScrollOnNew = true;
+let agFeedLimit = 15, agFeedMore = false, agFeedUnread = 0, agFilt = {range:'all', shop:'', unread:false, day:''}, agMsgLimit = 30, agMsgMore = false, agChatDay = '', agRunLimit = 10, agRunMore = false, agRunRange = 'all', agRunFailed = false, agTimesOpen = false, agLastTest = null;
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -2433,7 +2444,17 @@ async function agCall(method, path, body){
   return j;
 }
 const agCur = () => agAgents.find(a => a.slug === agSlug) || agAgents[0] || null;
-const agUnread = () => agCards.filter(c => !c.read_at).length;
+const AG_PAGE = 15;
+const agUnread = () => agFeedUnread;
+// Sydney-day bounds (ISO) for the date chips and date pickers.
+function agBounds(range, day){
+  const t = today(); let from = null, to = null;
+  if(range === 'today') from = sydMs(t, '00:00');
+  else if(range === '7d') from = sydMs(addDays(t, -6), '00:00');
+  else if(range === '30d') from = sydMs(addDays(t, -29), '00:00');
+  else if(range === 'day' && /^\d{4}-\d{2}-\d{2}$/.test(day || '')){ from = sydMs(day, '00:00'); to = sydMs(addDays(day, 1), '00:00'); }
+  return {from: from ? new Date(from).toISOString() : null, to: to ? new Date(to).toISOString() : null};
+}
 
 async function agLoad(){
   const my = ++agSeq;
@@ -2445,39 +2466,56 @@ async function agLoad(){
     if(!agSlug || !agAgents.some(a => a.slug === agSlug)) agSlug = agAgents[0] ? agAgents[0].slug : null;
     const a = agCur();
     if(a){
-      const [feed, ap, ms] = await Promise.all([
-        agCall('GET', '/feed?agent=' + encodeURIComponent(a.slug) + '&limit=40'),
+      const fq = new URLSearchParams({agent: a.slug, limit: String(agFeedLimit)});
+      const fb = agBounds(agFilt.range, agFilt.day);
+      if(fb.from) fq.set('from', fb.from);
+      if(fb.to) fq.set('to', fb.to);
+      if(agFilt.shop) fq.set('shop', agFilt.shop);
+      if(agFilt.unread) fq.set('unread', '1');
+      let mq = sb.from('agent_messages').select('id,role,channel,content,created_at').eq('agent_id', a.id).order('created_at', {ascending:false});
+      if(agChatDay){ const mb = agBounds('day', agChatDay); mq = mq.gte('created_at', mb.from).lt('created_at', mb.to).limit(200); }
+      else mq = mq.limit(agMsgLimit + 1);
+      let rq = sb.from('agent_runs').select('id,trigger,schedule_label,status,started_at,finished_at,cost_usd,error').eq('agent_id', a.id).order('created_at', {ascending:false}).limit(agRunLimit + 1);
+      const rb = agBounds(agRunRange);
+      if(rb.from) rq = rq.gte('started_at', rb.from);
+      if(agRunFailed) rq = rq.eq('status', 'failed');
+      const monthStart = sydMs(today().slice(0,8) + '01', '00:00');
+      const [feed, ap, ms, rr, mc, lt] = await Promise.all([
+        agCall('GET', '/feed?' + fq.toString()),
         sb.from('agent_approvals').select('id,kind,payload,status,created_at,card_id,agent_cards(headline,shop,deleted_at)').eq('agent_id', a.id).eq('status', 'pending').order('created_at', {ascending:false}),
-        sb.from('agent_messages').select('id,role,channel,content,created_at').eq('agent_id', a.id).order('created_at', {ascending:false}).limit(60)
+        mq, rq,
+        sb.from('agent_runs').select('cost_usd').eq('agent_id', a.id).gte('started_at', new Date(monthStart).toISOString()).limit(2000),
+        sb.from('agent_runs').select('id,status,cost_usd,error,started_at').eq('agent_id', a.id).eq('trigger', 'manual').eq('schedule_label', 'morning').order('created_at', {ascending:false}).limit(1)
       ]);
       if(my !== agSeq) return;
       if(ap.error) throw ap.error;
       if(ms.error) throw ms.error;
-      const monthStart = sydMs(today().slice(0,8) + '01', '00:00');
-      const [rr, mc] = await Promise.all([
-        sb.from('agent_runs').select('id,trigger,schedule_label,status,started_at,finished_at,cost_usd,error').eq('agent_id', a.id).order('created_at', {ascending:false}).limit(15),
-        sb.from('agent_runs').select('cost_usd').eq('agent_id', a.id).gte('started_at', new Date(monthStart).toISOString()).limit(2000)
-      ]);
-      if(my !== agSeq) return;
-      agRuns = rr.data || [];
+      const rrows = rr.data || [];
+      agRunMore = rrows.length > agRunLimit; agRuns = rrows.slice(0, agRunLimit);
       agMonthCost = mc.data ? mc.data.reduce((t, r) => t + (Number(r.cost_usd) || 0), 0) : null;
+      agLastTest = (lt.data && lt.data[0]) || null;
       if(agTab === 'setup' && Date.now() - agStatusAt > 20000) agLoadStatus();
       const hadMsgs = agMsgs.filter(m => !m.pending).length;
       // Signed picture links change on every fetch; keep the old one for the same picture so it doesn't reload (flash).
       const oldUrl = {}; agCards.forEach(c => { if(c.image_url) oldUrl[c.id + '|' + c.image_path] = c.image_url; });
       agCards = (feed.cards || []).map(c => { const u = oldUrl[c.id + '|' + c.image_path]; return u && Date.now() - agImgAt < 45*60e3 ? {...c, image_url: u} : c; });
       if(agCards.some(c => c.image_url && !Object.values(oldUrl).includes(c.image_url))) agImgAt = Date.now();
+      agFeedMore = !!feed.has_more;
+      if(typeof feed.unread === 'number') agFeedUnread = feed.unread;
       agAppr = (ap.data || []).filter(x => !(x.agent_cards && x.agent_cards.deleted_at));
-      agMsgs = (ms.data || []).reverse();
-      if(agMsgs.length > hadMsgs && agTab === 'chat') agScroll = true;
-    } else { agCards = []; agAppr = []; agMsgs = []; }
+      let mrows = ms.data || [];
+      agMsgMore = !agChatDay && mrows.length > agMsgLimit;
+      if(!agChatDay) mrows = mrows.slice(0, agMsgLimit);
+      agMsgs = mrows.reverse();
+      if(agMsgs.length > hadMsgs && agTab === 'chat' && agScrollOnNew) agScroll = true;
+    } else { agCards = []; agAppr = []; agMsgs = []; agRuns = []; }
     agErr = ''; agAt = Date.now();
   }catch(e){ if(my !== agSeq) return; agErr = 'Couldn’t load agents: ' + (e && e.message ? e.message : e); }
   const wasLoaded = agLoaded;
   agLoaded = true;
   if(mode === 'agents' && agOpenId){ const c = agCards.find(x => x.id === agOpenId); if(c && !c.read_at) agMarkRead(c); }
   // Only redraw when something actually changed, so pictures and cards don't flicker.
-  const sig = JSON.stringify([agCards.map(c => [c.id, c.read_at, c.headline, c.image_path, (c.actions || []).length]), agAppr.map(x => x.id), agMsgs.map(m => m.id), agRuns.map(r => [r.id, r.status, r.cost_usd]), agErr, agAgents.map(x => x.slug + x.status), agMonthCost]);
+  const sig = JSON.stringify([agCards.map(c => [c.id, c.read_at, c.headline, c.image_path, (c.actions || []).length]), agAppr.map(x => x.id), agMsgs.map(m => m.id), agRuns.map(r => [r.id, r.status, r.cost_usd]), agErr, agAgents.map(x => x.slug + x.status), agMonthCost, agFilt, agFeedLimit, agFeedMore, agFeedUnread, agMsgLimit, agMsgMore, agChatDay, agRunLimit, agRunMore, agRunRange, agRunFailed, agLastTest && [agLastTest.id, agLastTest.status, agLastTest.cost_usd]]);
   if(wasLoaded && sig === agSig) return;
   agSig = sig;
   render();
@@ -2500,6 +2538,7 @@ document.addEventListener('visibilitychange', () => { if(document.visibilityStat
 function agOpenSection(slug, cardId){
   if(slug && /^[a-z0-9-]{1,40}$/.test(slug)) agSlug = slug;
   agTab = 'feed'; agOpenId = cardId && /^[0-9a-f-]{36}$/i.test(cardId) ? cardId : null;
+  if(agOpenId){ agFilt = {range:'all', shop:'', unread:false, day:''}; agFeedLimit = AG_PAGE; }
   mode = 'agents'; tq = null; render(); window.scrollTo({top:0});
   if(agLoaded) agKick();
 }
@@ -2588,17 +2627,28 @@ function agCard(c){
     + img + body + (btns ? `<div class="agacts">${btns}</div>` : '') + `</article></div>`;
 }
 function agChat(a){
-  let h = '<div class="agchat" id="agChat">';
-  if(!agMsgs.length) h += `<div class="empty"><b>Ask ${esc(a.name)}</b>Sales, targets, repairs or staff. Type below.</div>`;
+  let h = `<div class="agfilt"><input type="date" id="agChatDay" class="agdate${agChatDay ? ' on' : ''}" value="${esc(agChatDay)}" max="${today()}" aria-label="Show a day">${agChatDay ? '<button type="button" class="agchip" data-agf="chat.clear">✕ Back to latest</button>' : ''}</div>`;
+  h += '<div class="agchat" id="agChat">';
+  if(agMsgMore) h += `<button type="button" class="agmore" data-agmore="chat">⬆ Load earlier messages</button>`;
+  if(!agMsgs.length) h += `<div class="empty"><b>${agChatDay ? 'Nothing on ' + esc(dayLabel(agChatDay)) : 'Ask ' + esc(a.name)}</b>${agChatDay ? 'Pick another day or go back to the latest.' : 'Sales, targets, repairs or staff. Type below.'}</div>`;
+  let lastDay = '';
   agMsgs.forEach(m => {
+    const ms = Date.parse(m.created_at), d = ms ? sydYmd(ms) : '';
+    if(d && d !== lastDay){ lastDay = d; h += `<div class="agday">${esc(dayLabel(d))}</div>`; }
     const u = m.role === 'user';
-    h += `<div class="agm ${u ? 'u' : 'a'}${m.pending ? ' pending' : ''}"><div class="b">${u ? esc(m.content) : agMd(m.content)}</div><small>${m.pending ? 'Sending…' : esc(agWhen(m.created_at))}${m.channel && m.channel !== 'daybook' ? ' · ' + esc(m.channel) : ''}</small></div>`;
+    h += `<div class="agm ${u ? 'u' : 'a'}${m.pending ? ' pending' : ''}"><div class="b">${u ? esc(m.content) : agMd(m.content)}</div><small>${m.pending ? 'Sending…' : esc(ms ? timeOf(ms) : '')}${m.channel && m.channel !== 'daybook' ? ' · ' + esc(m.channel) : ''}</small></div>`;
   });
   h += '</div>';
-  if(!agMsgs.some(m => m.role === 'agent')) h += `<div class="agnote">⏳ Replies aren’t switched on yet. Your messages are saved and ${esc(a.name)} will answer once it’s connected.</div>`;
   h += `<form class="agform" id="agForm" autocomplete="off"><textarea id="agIn" rows="1" maxlength="2000" placeholder="Message ${esc(a.name)}…" enterkeyhint="send" aria-label="Message">${esc(agDraft)}</textarea><button type="submit" aria-label="Send"${agSending ? ' disabled' : ''}>${I.arrow}</button></form>`;
   return h;
 }
+function agFilters(){
+  const R = (v, l) => `<button type="button" class="agchip" data-agf="feed.range.${v}" aria-pressed="${agFilt.range === v}">${l}</button>`;
+  const S = (v, l) => `<button type="button" class="agchip" data-agf="feed.shop.${v}" aria-pressed="${agFilt.shop === v}">${l}</button>`;
+  return `<div class="agfilt">${R('all', 'All')}${R('today', 'Today')}${R('7d', '7 days')}${R('30d', '30 days')}<input type="date" id="agDay" class="agdate${agFilt.day ? ' on' : ''}" value="${esc(agFilt.day)}" max="${today()}" aria-label="Pick a day"></div>`
+    + `<div class="agfilt">${S('Mobiletek', 'Mobiletek')}${S('MCC', 'MCC')}${S('Combined', 'Combined')}<button type="button" class="agchip" data-agf="feed.unread" aria-pressed="${agFilt.unread}">● Unread</button></div>`;
+}
+const agFiltOn = () => agFilt.range !== 'all' || !!agFilt.shop || agFilt.unread;
 function renderAgents(){
   const a = agCur(), unread = agUnread();
   let h = `<div class="agpage"><button class="back" data-back>${I.left}Back</button><div class="head"><h3 style="font-size:28px">🤖 Agents</h3>${agTab === 'feed' && unread ? '<button type="button" class="link" data-agallread>Mark all read</button>' : ''}</div>`;
@@ -2610,7 +2660,9 @@ function renderAgents(){
   if(agTab === 'chat') return h + agChat(a) + '</div>';
   if(agTab === 'setup') return h + agSetup() + '</div>';
   if(agAppr.length) h += `<div class="agstrip"><div class="agsth">✋ Needs your OK · ${agAppr.length}</div>${agAppr.map(agApprRow).join('')}</div>`;
-  h += agCards.length ? `<div class="aglist">${agCards.map(agCard).join('')}</div>` : `<div class="empty"><b>No cards yet</b>${esc(a.name)}’s briefs and alerts will land here.</div>`;
+  h += agFilters();
+  h += agCards.length ? `<div class="aglist">${agCards.map(agCard).join('')}</div>` : (agFiltOn() ? `<div class="empty"><b>No cards match</b><button type="button" class="agsbtn soft" data-agf="feed.clear" style="margin-top:10px">Clear filters</button></div>` : `<div class="empty"><b>No cards yet</b>${esc(a.name)}’s briefs and alerts will land here.</div>`);
+  if(agFeedMore) h += `<button type="button" class="agmore" data-agmore="feed">Load more</button>`;
   return h + '</div>';
 }
 function agGrow(ta){ ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 140) + 'px'; }
@@ -2645,8 +2697,7 @@ function agSetup(){
   if(st.error) return `<div class="warn">${esc(st.error)}</div>`;
   const busy = k => agBusy === k ? ' disabled' : '';
   const b = (k, label, cls) => `<button type="button" class="agsbtn${cls ? ' ' + cls : ''}" data-agdo="${k}"${busy(k)}>${agBusy === k ? '…' : label}</button>`;
-  const tests = agRuns.filter(r => r.trigger === 'manual' && r.schedule_label === 'morning');
-  const lastTest = tests[0];
+  const lastTest = agLastTest;
   let h = '<div class="agsetup">';
   h += agStep(1, '🔑', 'Anthropic key', st.key, st.key ? 'Saved in Supabase' : 'Add ANTHROPIC_AGENT_API_KEY in Supabase → Edge Functions → Secrets');
   h += agStep(2, '🛠', 'Agent', st.setup, st.setup ? 'Ready · updated ' + esc(agWhen(st.setup_at)) : 'Creates StockWise in your Anthropic account', st.key ? b('setup', st.setup ? 'Update' : 'Set up', st.setup ? 'soft' : '') : '');
@@ -2654,14 +2705,19 @@ function agSetup(){
   h += agStep(4, '🔔', 'Webhook', st.webhook_key, st.webhook_key ? 'Daybook hears when runs finish' : 'Console → Manage → Webhooks → Add this link, then save the secret in Supabase as ANTHROPIC_WEBHOOK_SIGNING_KEY', st.webhook_key ? '' : `<button type="button" class="agsbtn soft" data-agcopy="${esc(st.webhook_url)}">Copy link</button>`);
   const testSub = !lastTest ? 'One run now, schedules stay off' : lastTest.status === 'running' ? '⏳ Running… started ' + esc(agWhen(lastTest.started_at)) : (lastTest.status === 'done' ? '✅ ' : '⚠️ ') + 'Cost ' + agUsd(lastTest.cost_usd) + (lastTest.error ? ' · ' + esc(lastTest.error) : '');
   h += agStep(5, '🧪', 'Test run', lastTest && lastTest.status === 'done', testSub, st.setup && st.stockwise ? b('test', lastTest ? 'Run again' : 'Run now', lastTest ? 'soft' : '') : '');
-  const lastHaiku = agRuns.find(r => r.schedule_label === 'morning-haiku');
-  const hSub = !lastHaiku ? 'Same morning brief on Haiku 5.5, to compare cost and quality' : lastHaiku.status === 'running' ? '⏳ Running…' : (lastHaiku.status === 'done' ? '✅ ' : '⚠️ ') + 'Cost ' + agUsd(lastHaiku.cost_usd) + (lastHaiku.error ? ' · ' + esc(lastHaiku.error) : '');
-  if(st.setup && st.stockwise) h += agStep('H', '🧪', 'Haiku test', lastHaiku && lastHaiku.status === 'done', hSub, b('haiku', lastHaiku ? 'Run again' : 'Test Haiku', 'soft'));
   h += agStep(6, '⏰', 'Schedules', st.schedules_on, st.schedules_on ? 'On' : 'Off until you switch them on', st.setup ? b('sched', st.schedules_on ? 'Pause all' : 'Switch on', st.schedules_on ? 'soft' : 'go') : '');
   h += '</div>';
-  if(st.schedules && st.schedules.length) h += `<div class="agcard agruns" style="--sev:#4ad6ff"><div class="agrh">⏰ Times (Sydney)</div>${st.schedules.map(x => `<div class="agrr"><span>${esc(x.name)}</span><span>${esc(agCronText(x.cron))}</span><span class="agrs ${x.status === 'active' ? 'ok' : ''}">${esc(x.status === 'active' ? 'On' : x.status === 'paused' ? 'Off' : x.status)}</span></div>`).join('')}</div>`;
+  if(st.schedules && st.schedules.length){
+    const onN = st.schedules.filter(x => x.status === 'active').length;
+    h += `<div class="agcard agruns" style="--sev:#4ad6ff"><button type="button" class="agrh agtoggle" data-agtimes aria-expanded="${agTimesOpen}"><span>⏰ Times (Sydney) · ${onN} of ${st.schedules.length} on</span><span>${agTimesOpen ? '▴' : '▾'}</span></button>`
+      + (agTimesOpen ? st.schedules.map(x => `<div class="agrr"><span>${esc(x.name)}</span><span>${esc(agCronText(x.cron))}</span><span class="agrs ${x.status === 'active' ? 'ok' : ''}">${esc(x.status === 'active' ? 'On' : x.status === 'paused' ? 'Off' : x.status)}</span></div>`).join('') : '')
+      + `</div>`;
+  }
+  const RR = (v, l) => `<button type="button" class="agchip" data-agf="run.range.${v}" aria-pressed="${agRunRange === v}">${l}</button>`;
   h += `<div class="agcard agruns" style="--sev:#ffd93d"><div class="agrh">💸 Runs · this month ${agMonthCost === null ? '' : agUsd(agMonthCost)}</div>`;
-  h += agRuns.length ? agRuns.map(r => `<div class="agrr"><span>${esc(r.schedule_label || r.trigger)}${r.trigger === 'manual' ? ' 🧪' : ''}</span><span>${esc(agWhen(r.started_at))}</span><span class="agrs ${r.status === 'done' ? 'ok' : r.status === 'failed' ? 'bad' : ''}">${r.status === 'running' ? '⏳' : agUsd(r.cost_usd)}</span></div>`).join('') : '<div class="agfine">No runs yet.</div>';
+  h += `<div class="agfilt">${RR('all', 'All')}${RR('today', 'Today')}${RR('7d', '7 days')}${RR('30d', '30 days')}<button type="button" class="agchip" data-agf="run.failed" aria-pressed="${agRunFailed}">⚠️ Failed</button></div>`;
+  h += agRuns.length ? agRuns.map(r => `<div class="agrr"><span>${esc(r.schedule_label || r.trigger)}${r.trigger === 'manual' ? ' 🧪' : ''}</span><span>${esc(agWhen(r.started_at))}</span><span class="agrs ${r.status === 'done' ? 'ok' : r.status === 'failed' ? 'bad' : ''}">${r.status === 'running' ? '⏳' : agUsd(r.cost_usd)}</span></div>`).join('') : '<div class="agfine">No runs match.</div>';
+  if(agRunMore) h += `<button type="button" class="agmore" data-agmore="run">Load more</button>`;
   h += `<div class="agfine">Cap: US$1 per run. A run stops if it reaches the cap.</div></div>`;
   return h;
 }
@@ -2672,7 +2728,6 @@ async function agDo(k){
     if(k === 'setup'){ const r = await agCall('POST', '/admin/setup', {agent: a.slug}); toast('Agent ready ✅'); console.log(r.done); }
     else if(k === 'connect'){ const r = await agCall('POST', '/admin/stockwise/connect', {agent: a.slug, return_to: location.origin + location.pathname}); location.href = r.url; return; }
     else if(k === 'test'){ await agCall('POST', '/run', {agent: a.slug, label: 'morning'}); toast('Test run started. It takes a few minutes.'); }
-    else if(k === 'haiku'){ await agCall('POST', '/run', {agent: a.slug, label: 'morning', model: 'haiku'}); toast('Haiku test started. It takes a few minutes.'); }
     else if(k === 'sched'){ const on = !(agStatus && agStatus.schedules_on); await agCall('POST', '/admin/schedules', {agent: a.slug, on}); toast(on ? 'Schedules on ⏰' : 'Schedules paused'); }
   }catch(e){ toast('Couldn’t do that: ' + e.message); }
   agBusy = ''; agStatus = agStatus || null; await agLoadStatus(); agKick();
@@ -2685,8 +2740,34 @@ function renderAgentTile(){
 }
 
 async function agMarkRead(c){
-  c.read_at = new Date().toISOString();
-  try{ await agCall('POST', '/cards/' + c.id + '/read'); }catch(_){ c.read_at = null; }
+  c.read_at = new Date().toISOString(); agFeedUnread = Math.max(0, agFeedUnread - 1);
+  try{ await agCall('POST', '/cards/' + c.id + '/read'); }catch(_){ c.read_at = null; agFeedUnread++; }
+}
+async function agMarkAll(){
+  const a = agCur(); if(!a) return;
+  const before = agFeedUnread; agCards.forEach(c => { if(!c.read_at) c.read_at = new Date().toISOString(); }); agFeedUnread = 0; render();
+  try{ await agCall('POST', '/cards/read-all', {agent: a.slug}); }catch(e){ agFeedUnread = before; toast('Couldn’t mark read: ' + e.message); }
+  agKick();
+}
+function agFilter(spec){
+  const [area, key, val] = spec.split('.');
+  if(area === 'feed'){
+    if(key === 'range'){ agFilt.range = val; agFilt.day = ''; }
+    else if(key === 'shop'){ agFilt.shop = agFilt.shop === val ? '' : val; }
+    else if(key === 'unread'){ agFilt.unread = !agFilt.unread; }
+    else if(key === 'clear'){ agFilt = {range:'all', shop:'', unread:false, day:''}; }
+    agFeedLimit = AG_PAGE;
+  } else if(area === 'run'){
+    if(key === 'range') agRunRange = val; else if(key === 'failed') agRunFailed = !agRunFailed;
+    agRunLimit = 10;
+  } else if(area === 'chat'){ agChatDay = ''; agMsgLimit = 30; agScrollOnNew = true; }
+  render(); agLoad();
+}
+function agMore(area){
+  if(area === 'feed') agFeedLimit = Math.min(agFeedLimit + AG_PAGE, 100);
+  else if(area === 'chat'){ agMsgLimit += 30; agScrollOnNew = false; agScroll = false; }
+  else if(area === 'run') agRunLimit += 10;
+  agLoad();
 }
 async function agDelete(id){
   const c = agCards.find(x => x.id === id); if(!c) return;
@@ -2717,7 +2798,7 @@ async function agSend(){
   const t = agDraft.trim(), a = agCur(); if(!t || agSending || !a) return;
   agSending = true;
   const tmp = {id:'tmp' + Date.now(), role:'user', channel:'daybook', content:t, created_at:new Date().toISOString(), pending:true};
-  agMsgs = [...agMsgs, tmp]; agDraft = ''; agScroll = true; render();
+  agMsgs = [...agMsgs, tmp]; agDraft = ''; agScroll = true; agScrollOnNew = true; agChatDay = ''; render();
   try{ await agCall('POST', '/message', {agent: a.slug, text: t}); }
   catch(e){ agMsgs = agMsgs.filter(m => m !== tmp); agDraft = t; toast('Couldn’t send: ' + e.message); }
   agSending = false; render(); agKick();
@@ -2740,9 +2821,17 @@ $('#app').addEventListener('click', e => {
   else if(b.dataset.agdo) agDo(b.dataset.agdo);
   else if(b.dataset.agcopy){ try{ navigator.clipboard.writeText(b.dataset.agcopy); toast('Link copied'); }catch(_){ toast(b.dataset.agcopy); } }
   else if(b.dataset.agpick){ if(b.dataset.agpick !== agSlug){ agSlug = b.dataset.agpick; agOpenId = null; agCards = []; agAppr = []; agMsgs = []; render(); agLoad(); } }
-  else if('agallread' in b.dataset){ agCards.filter(c => !c.read_at).forEach(agMarkRead); render(); }
+  else if('agallread' in b.dataset) agMarkAll();
+  else if(b.dataset.agf) agFilter(b.dataset.agf);
+  else if(b.dataset.agmore) agMore(b.dataset.agmore);
+  else if('agtimes' in b.dataset){ agTimesOpen = !agTimesOpen; render(); }
 });
 $('#app').addEventListener('submit', e => { if(e.target.id !== 'agForm') return; e.preventDefault(); agSend(); });
+$('#app').addEventListener('change', e => {
+  const t = e.target;
+  if(t.id === 'agDay'){ agFilt.day = t.value; agFilt.range = t.value ? 'day' : 'all'; agFeedLimit = AG_PAGE; render(); agLoad(); }
+  else if(t.id === 'agChatDay'){ agChatDay = t.value; agMsgLimit = 30; agScrollOnNew = false; agScroll = false; render(); agLoad(); }
+});
 $('#app').addEventListener('input', e => { if(e.target.id !== 'agIn') return; agDraft = e.target.value; agGrow(e.target); });
 $('#app').addEventListener('keydown', e => { if(e.target.id === 'agIn' && e.key === 'Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); agSend(); } });
 function agCloseSwipes(except){ document.querySelectorAll('.agsw.swiped').forEach(el => { if(el !== except){ el.classList.remove('swiped'); const c = el.querySelector('.agcard'); if(c) c.style.transform = ''; } }); }
@@ -2752,7 +2841,7 @@ function agCloseSwipes(except){ document.querySelectorAll('.agsw.swiped').forEac
   let st = null, just = false;
   app.addEventListener('pointerdown', e => {
     if(mode !== 'agents' || (e.pointerType === 'mouse' && e.button !== 0)) return;
-    const c = e.target.closest('.agcard');
+    const c = e.target.closest('.agsw .agcard');
     if(!c || e.target.closest('.agbtn')){ if(!e.target.closest('.agsw')) agCloseSwipes(); st = null; return; }
     const it = c.closest('.agsw'); agCloseSwipes(it);
     st = {id:e.pointerId, x:e.clientX, y:e.clientY, c, it, lock:null, base: it.classList.contains('swiped') ? -W : 0, dx:0};
