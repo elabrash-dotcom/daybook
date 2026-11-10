@@ -798,6 +798,7 @@ body.askopen{overflow:hidden}
 .agdatel input{position:absolute;inset:0;width:100%;height:100%;opacity:0;font-size:16px;border:0}
 .agmore{width:100%;height:52px;border-radius:16px;background:var(--surface);box-shadow:var(--shadow);font-weight:800;font-size:16px}
 .agday{align-self:center;font-size:12.5px;font-weight:800;color:var(--ink-3);padding:4px 12px;border-radius:999px;background:var(--soft);margin:6px 0}
+.agsetupbox .agstep{box-shadow:none;background:var(--soft)}
 .agtoggle{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;font:inherit;font-weight:800;font-size:16px}
 .agruns .agmore{height:46px;box-shadow:none;background:var(--soft)}
 </style>
@@ -868,7 +869,7 @@ let histLimit = 60, showSomeday = false, tq = null, tsFocus = false;
 let agAgents = [], agSlug = null, agCards = [], agAppr = [], agMsgs = [], agTab = 'feed', agOpenId = null;
 let agLoaded = false, agErr = '', agAt = 0, agChans = [], agTimer = null, agSending = false, agDraft = '', agScroll = false, agArm = null, agArmT = null, agSeq = 0;
 let agStatus = null, agRuns = [], agMonthCost = null, agBusy = '', agStatusAt = 0, agImgAt = 0, agSig = '', agScrollOnNew = true;
-let agFeedLimit = 15, agFeedMore = false, agFeedUnread = 0, agFilt = {range:'today', shop:'', unread:false, day:''}, agMsgLimit = 30, agMsgMore = false, agChatDay = '', agRunLimit = 10, agRunMore = false, agRunRange = 'today', agRunFailed = false, agTimesOpen = false, agLastTest = null;
+let agFeedLimit = 15, agFeedMore = false, agFeedUnread = 0, agFilt = {range:'today', shop:'', unread:false, day:''}, agMsgLimit = 30, agMsgMore = false, agChatDay = '', agRunLimit = 10, agRunMore = false, agRunRange = 'today', agRunFailed = false, agTimesOpen = false, agSetupOpen = false, agLastTest = null;
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -2750,6 +2751,10 @@ function agSetup(){
   h += agStep(5, '🧪', 'Test run', lastTest && lastTest.status === 'done', testSub, st.setup && st.stockwise ? b('test', lastTest ? 'Run again' : 'Run now', lastTest ? 'soft' : '') : '');
   h += agStep(6, '⏰', 'Schedules', st.schedules_on, st.schedules_on ? 'On' : 'Off until you switch them on', st.setup ? b('sched', st.schedules_on ? 'Pause all' : 'Switch on', st.schedules_on ? 'soft' : 'go') : '');
   h += '</div>';
+  // All the set-up rows live in one collapsed group; it opens by itself only when something needs attention.
+  const allOk = !!(st.key && st.setup && st.stockwise && st.webhook_key);
+  const setupOpen = agSetupOpen || !allOk;
+  h = `<div class="agcard agruns agsetupbox" style="--sev:${allOk ? '#2FA66A' : '#E8A317'}"><button type="button" class="agrh agtoggle" data-agsetupt aria-expanded="${setupOpen}"><span>⚙️ Setup · ${allOk ? 'all good ✓' : 'needs attention'} · schedules ${st.schedules_on ? 'on' : 'off'}</span><span>${setupOpen ? '▴' : '▾'}</span></button>${setupOpen ? h : ''}</div>`;
   if(st.schedules && st.schedules.length){
     const onN = st.schedules.filter(x => x.status === 'active').length;
     h += `<div class="agcard agruns" style="--sev:#4ad6ff"><button type="button" class="agrh agtoggle" data-agtimes aria-expanded="${agTimesOpen}"><span>⏰ Times (Sydney) · ${onN} of ${st.schedules.length} on</span><span>${agTimesOpen ? '▴' : '▾'}</span></button>`
@@ -2869,6 +2874,7 @@ $('#app').addEventListener('click', e => {
   else if(b.dataset.agf) agFilter(b.dataset.agf);
   else if(b.dataset.agmore) agMore(b.dataset.agmore);
   else if('agtimes' in b.dataset){ agTimesOpen = !agTimesOpen; render(); }
+  else if('agsetupt' in b.dataset){ agSetupOpen = !agSetupOpen; render(); }
 });
 $('#app').addEventListener('submit', e => { if(e.target.id !== 'agForm') return; e.preventDefault(); agSend(); });
 $('#app').addEventListener('change', e => {
