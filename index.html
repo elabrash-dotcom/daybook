@@ -2635,7 +2635,7 @@ function agSetup(){
   if(st.error) return `<div class="warn">${esc(st.error)}</div>`;
   const busy = k => agBusy === k ? ' disabled' : '';
   const b = (k, label, cls) => `<button type="button" class="agsbtn${cls ? ' ' + cls : ''}" data-agdo="${k}"${busy(k)}>${agBusy === k ? '…' : label}</button>`;
-  const tests = agRuns.filter(r => r.trigger === 'manual');
+  const tests = agRuns.filter(r => r.trigger === 'manual' && r.schedule_label === 'morning');
   const lastTest = tests[0];
   let h = '<div class="agsetup">';
   h += agStep(1, '🔑', 'Anthropic key', st.key, st.key ? 'Saved in Supabase' : 'Add ANTHROPIC_AGENT_API_KEY in Supabase → Edge Functions → Secrets');
@@ -2644,6 +2644,9 @@ function agSetup(){
   h += agStep(4, '🔔', 'Webhook', st.webhook_key, st.webhook_key ? 'Daybook hears when runs finish' : 'Console → Manage → Webhooks → Add this link, then save the secret in Supabase as ANTHROPIC_WEBHOOK_SIGNING_KEY', st.webhook_key ? '' : `<button type="button" class="agsbtn soft" data-agcopy="${esc(st.webhook_url)}">Copy link</button>`);
   const testSub = !lastTest ? 'One run now, schedules stay off' : lastTest.status === 'running' ? '⏳ Running… started ' + esc(agWhen(lastTest.started_at)) : (lastTest.status === 'done' ? '✅ ' : '⚠️ ') + 'Cost ' + agUsd(lastTest.cost_usd) + (lastTest.error ? ' · ' + esc(lastTest.error) : '');
   h += agStep(5, '🧪', 'Test run', lastTest && lastTest.status === 'done', testSub, st.setup && st.stockwise ? b('test', lastTest ? 'Run again' : 'Run now', lastTest ? 'soft' : '') : '');
+  const lastHaiku = agRuns.find(r => r.schedule_label === 'morning-haiku');
+  const hSub = !lastHaiku ? 'Same morning brief on Haiku 5.5, to compare cost and quality' : lastHaiku.status === 'running' ? '⏳ Running…' : (lastHaiku.status === 'done' ? '✅ ' : '⚠️ ') + 'Cost ' + agUsd(lastHaiku.cost_usd) + (lastHaiku.error ? ' · ' + esc(lastHaiku.error) : '');
+  if(st.setup && st.stockwise) h += agStep('H', '🧪', 'Haiku test', lastHaiku && lastHaiku.status === 'done', hSub, b('haiku', lastHaiku ? 'Run again' : 'Test Haiku', 'soft'));
   h += agStep(6, '⏰', 'Schedules', st.schedules_on, st.schedules_on ? 'On' : 'Off until you switch them on', st.setup ? b('sched', st.schedules_on ? 'Pause all' : 'Switch on', st.schedules_on ? 'soft' : 'go') : '');
   h += '</div>';
   if(st.schedules && st.schedules.length) h += `<div class="agcard agruns" style="--sev:#4ad6ff"><div class="agrh">⏰ Times (Sydney)</div>${st.schedules.map(x => `<div class="agrr"><span>${esc(x.name)}</span><span>${esc(agCronText(x.cron))}</span><span class="agrs ${x.status === 'active' ? 'ok' : ''}">${esc(x.status === 'active' ? 'On' : x.status === 'paused' ? 'Off' : x.status)}</span></div>`).join('')}</div>`;
@@ -2659,6 +2662,7 @@ async function agDo(k){
     if(k === 'setup'){ const r = await agCall('POST', '/admin/setup', {agent: a.slug}); toast('Agent ready ✅'); console.log(r.done); }
     else if(k === 'connect'){ const r = await agCall('POST', '/admin/stockwise/connect', {agent: a.slug, return_to: location.origin + location.pathname}); location.href = r.url; return; }
     else if(k === 'test'){ await agCall('POST', '/run', {agent: a.slug, label: 'morning'}); toast('Test run started. It takes a few minutes.'); }
+    else if(k === 'haiku'){ await agCall('POST', '/run', {agent: a.slug, label: 'morning', model: 'haiku'}); toast('Haiku test started. It takes a few minutes.'); }
     else if(k === 'sched'){ const on = !(agStatus && agStatus.schedules_on); await agCall('POST', '/admin/schedules', {agent: a.slug, on}); toast(on ? 'Schedules on ⏰' : 'Schedules paused'); }
   }catch(e){ toast('Couldn’t do that: ' + e.message); }
   agBusy = ''; agStatus = agStatus || null; await agLoadStatus(); agKick();

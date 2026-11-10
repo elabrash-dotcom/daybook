@@ -326,6 +326,7 @@ Deno.serve(async (req) => {
       const body = await req.json().catch(() => ({}));
       const row = await agentRow(who.ownerId, body?.agent);
       const label = typeof body?.label === "string" ? body.label : "morning";
+      if (typeof body?.model === "string") return json({ ok: true, run: await cma.runTest(sb, row, label, body.model) });
       return json({ ok: true, run: await cma.runNow(sb, row, label) });
     }
 

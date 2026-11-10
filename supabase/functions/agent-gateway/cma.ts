@@ -290,6 +290,32 @@ export async function runNow(sb: SupabaseClient, row: AgentRow, label: string) {
   return data;
 }
 
+// One-off cost/quality test: same prompt as a schedule, but on a cheaper model. Nothing else changes (agent and schedules stay as they are).
+const TEST_MODELS: Record<string, { id: "claude-haiku-5-5" | "claude-sonnet-5-5"; effort: "low" | "medium" }> = {
+  haiku: { id: "claude-haiku-5-5", effort: "low" },
+  sonnet: { id: "claude-sonnet-5-5", effort: "low" },
+};
+export async function runTest(sb: SupabaseClient, row: AgentRow, label: string, modelKey: string) {
+  const m = TEST_MODELS[modelKey];
+  const sched = SCHEDULES.runs.find((r) => r.label === label);
+  if (!m || !sched) throw new HttpError(400, "unknown test");
+  const cfg = row.config ?? {};
+  if (!row.anthropic_agent_id || !row.anthropic_environment_id || !cfg.rules_store_id) throw new HttpError(409, "Set up the agent first");
+  if (!cfg.sw_cred_id) throw new HttpError(409, "Connect StockWise first");
+  const s = await client().beta.sessions.create({
+    agent: { type: "agent_with_overrides", id: row.anthropic_agent_id, model: m },
+    environment_id: row.anthropic_environment_id, vault_ids: [cfg.vault_id!], resources: memResources(cfg), budget: budget(),
+    title: `StockWise · ${sched.name} · ${modelKey} test`, metadata: { kind: "test", model: modelKey, daybook_agent: row.slug },
+    initial_events: [{ type: "user.message", content: [{ type: "text", text: `[${modelKey.toUpperCase()} TEST] Start every card headline with "${modelKey.toUpperCase()}: ". ` + sched.prompt }] }],
+  });
+  const { data, error } = await sb.from("agent_runs").insert({
+    owner_id: row.owner_id, agent_id: row.id, trigger: "manual", schedule_label: `${label}-${modelKey}`, status: "running",
+    session_id: s.id, started_at: new Date().toISOString(),
+  }).select("id, session_id").single();
+  if (error) throw error;
+  return data;
+}
+
 export async function sendChat(sb: SupabaseClient, row: AgentRow, text: string) {
   if (!row.anthropic_agent_id || !row.anthropic_environment_id) throw new HttpError(409, "Set up the agent first");
   const c = client();
@@ -348,7 +374,7 @@ export async function syncSession(sb: SupabaseClient, sessionId: string) {
   if (!row) return;
   const cfg: Cfg = row.config ?? {};
   const isChat = s.metadata?.kind === "chat";
-  const label = isChat ? "chat" : Object.entries(cfg.deployments ?? {}).find(([, v]) => v === s.deployment_id)?.[0] ?? null;
+  const label = isChat ? "chat" : s.metadata?.kind === "test" ? `test-${s.metadata.model}` : Object.entries(cfg.deployments ?? {}).find(([, v]) => v === s.deployment_id)?.[0] ?? null;
 
   // Latest events (newest first) tell us why the session went idle, and hold chat replies.
   const page = await c.beta.sessions.events.list(sessionId, { order: "desc", limit: 100 });
