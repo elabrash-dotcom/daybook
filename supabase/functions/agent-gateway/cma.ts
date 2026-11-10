@@ -367,8 +367,17 @@ export async function syncSession(sb: SupabaseClient, sessionId: string) {
     owner_id: row.owner_id, agent_id: row.id, session_id: sessionId, status, cost_usd: cents / 100, error,
     finished_at: status === "running" ? null : new Date().toISOString(),
   };
-  if (!existing) Object.assign(patch, { trigger: isChat ? "chat" : "schedule", schedule_label: label, started_at: s.created_at });
-  const { data: run } = await sb.from("agent_runs").upsert(patch, { onConflict: "session_id" }).select("id, started_at").single();
+  let run: { id: string; started_at: string } | null = null;
+  if (existing) {
+    const { data: u, error: ue } = await sb.from("agent_runs").update(patch).eq("id", existing.id).select("id, started_at").single();
+    if (ue) throw ue;
+    run = u;
+  } else {
+    const { data: i, error: ie } = await sb.from("agent_runs")
+      .insert({ ...patch, trigger: isChat ? "chat" : "schedule", schedule_label: label, started_at: s.created_at }).select("id, started_at").single();
+    if (ie) throw ie;
+    run = i;
+  }
 
   if (!isChat && status !== "running" && run && existing?.status !== status) {
     // Link this run's cards to it.
@@ -406,4 +415,16 @@ export async function saveNote(row: AgentRow, title: string, text: string) {
   const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 50) || "note";
   const day = new Date().toISOString().slice(0, 10);
   await client().beta.memoryStores.memories.create(store, { path: `/notes/${day}-${slug}-${rand(3)}.md`, content: `# ${title}\n\n${text}\n` });
+}
+
+/* Self-heal: refresh runs still marked "running" (a webhook can be missed). Called when the Setup tab opens. */
+export async function healRuns(sb: SupabaseClient, row: AgentRow) {
+  if (!hasKey()) return 0;
+  const { data } = await sb.from("agent_runs").select("session_id").eq("agent_id", row.id).eq("status", "running")
+    .not("session_id", "is", null).order("created_at", { ascending: false }).limit(5);
+  let n = 0;
+  for (const r of data ?? []) {
+    try { await syncSession(sb, r.session_id as string); n++; } catch (e) { console.error("heal failed", r.session_id, e instanceof Error ? e.message : e); }
+  }
+  return n;
 }
