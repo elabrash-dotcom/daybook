@@ -37,14 +37,16 @@ export function pgStore(pool, base, disk, clock) {
 }
 
 // Mirrors index.ts authenticate(): dvc_ token -> agent_devices; "jwt:<uuid>" stands in for a Daybook login.
-export async function startServer(pool, { clock = () => Date.now() } = {}) {
+export async function startServer(pool, { clock = () => Date.now(), extra = null } = {}) {
   const disk = fs.mkdtempSync(path.join(os.tmpdir(), "cashdisk-"));
   let base = "";
   const store = {};
   const server = http.createServer(async (rq, rs) => {
     const url = new URL(rq.url, "http://x");
+    url.pathname = url.pathname.replace(/^\/functions\/v1\/agent-gateway/, "") || "/";
     const chunks = []; for await (const c of rq) chunks.push(c);
     const body = Buffer.concat(chunks);
+    if (extra && await extra(rq, rs, url, body.toString())) return;
     const send = (b, s = 200) => { rs.writeHead(s, { "content-type": "application/json" }); rs.end(JSON.stringify(b)); };
     const reply = (b, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { "content-type": "application/json" } });
     const out = async (res) => { rs.writeHead(res.status, { "content-type": "application/json" }); rs.end(Buffer.from(await res.arrayBuffer())); };
