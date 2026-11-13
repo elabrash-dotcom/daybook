@@ -39,6 +39,16 @@ export function supabaseCashStore(sb: SupabaseClient): CashStore {
       const size = f?.metadata?.size;
       return typeof size === "number" ? size : null;
     },
+    async signedView(path, seconds) {
+      const { data, error } = await sb.storage.from(BUCKET).createSignedUrl(path, seconds);
+      return error || !data ? null : data.signedUrl;
+    },
+    async ownedEventPaths(ownerId, ids) {
+      const { data, error } = await sb.from("cash_events").select("id, snapshot_raw_path, snapshot_annotated_path, clip_path")
+        .eq("owner_id", ownerId).in("id", ids);
+      if (error) throw error;
+      return data ?? [];
+    },
     async setAssetPath(eventId, column, path) {
       const { error } = await sb.from("cash_events").update({ [column]: path, assets_confirmed_at: new Date().toISOString() }).eq("id", eventId);
       if (error) throw error;

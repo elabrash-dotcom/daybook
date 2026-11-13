@@ -9,7 +9,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import * as cma from "./cma.ts";
-import { handleCash, handleDeviceAdmin } from "./cash.ts";
+import { cashGate, handleCash, handleDeviceAdmin, handleImages } from "./cash.ts";
 import { supabaseCashStore } from "./cash_store.ts";
 
 const sb = createClient(
@@ -182,14 +182,15 @@ Deno.serve(async (req) => {
   if (!who) return json({ error: "unauthorised" }, 401);
 
   try {
-    // Cash Audit. Camera devices may ONLY use /cash/*; every other caller is refused there.
+    // Cash Audit. Camera devices may ONLY use /cash/*; every other caller is refused there (cashGate).
+    const gate = cashGate(who, path);
+    if (gate) return json({ error: gate.error }, gate.status);
     if (who.channel === "camera") {
-      if (!path.startsWith("/cash/")) return json({ error: "camera devices can only use /cash" }, 403);
       if (!who.storeKey || !who.deviceId) return json({ error: "device has no store" }, 403);
       const res = await handleCash(req, path, { ownerId: who.ownerId, deviceId: who.deviceId, storeKey: who.storeKey }, cashStore, json);
       return res ?? json({ error: "not found" }, 404);
     }
-    if (path.startsWith("/cash/")) return json({ error: "camera devices only" }, 403);
+    if (path === "/cash/images" && req.method === "POST") return await handleImages(req, who.ownerId, cashStore, json);
     if (path === "/admin/devices" || path === "/admin/devices/revoke") {
       if (who.isDevice) return json({ error: "Daybook only" }, 403);
       return (await handleDeviceAdmin(req, path, who.ownerId, cashStore, json, sha256hex)) ?? json({ error: "not found" }, 404);

@@ -84,7 +84,7 @@ create table if not exists public.cash_events (
   match_method  text check (match_method is null or char_length(match_method) <= 40),
 
   -- manual review
-  label         text check (label is null or label in ('correct_sale', 'no_sale', 'false_alarm', 'refund', 'float_count', 'other')),
+  label         text check (label is null or label in ('confirmed_cash', 'false_detection', 'unsure', 'other')),
   label_note    text check (label_note is null or char_length(label_note) <= 500),
   labelled_at   timestamptz,
   labelled_by   uuid,

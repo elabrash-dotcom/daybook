@@ -15,6 +15,8 @@ export interface CashStore {
   findEvent(deviceId: string, eventUid: string): Promise<StoredEvent | null>;
   signedUpload(path: string): Promise<{ url: string; token: string }>;
   objectSize(path: string): Promise<number | null>;
+  signedView(path: string, seconds: number): Promise<string | null>;
+  ownedEventPaths(ownerId: string, ids: string[]): Promise<{ id: string; snapshot_raw_path: string | null; snapshot_annotated_path: string | null; clip_path: string | null }[]>;
   setAssetPath(eventId: string, column: string, path: string): Promise<void>;
   createDevice(d: { ownerId: string; label: string; storeKey: string; tokenHash: string }): Promise<{ id: string }>;
   listDevices(ownerId: string): Promise<Record<string, unknown>[]>;
@@ -78,7 +80,11 @@ async function postEvents(req: Request, who: CameraCaller, store: CashStore, rep
 function parseKinds(v: unknown): AssetKind[] | null {
   const arr = Array.isArray(v) ? v : ["raw", "annotated", "clip"];
   const out: AssetKind[] = [];
-  for (const k of arr) { if (!ASSET_KINDS.includes(k as AssetKind)) return null; if (!out.includes(k as AssetKind)) out.push(k as AssetKind); }
+  for (const raw of arr) {
+    const k = raw === "snapshot" ? "annotated" : raw; // legacy single snapshot = the annotated frame
+    if (!ASSET_KINDS.includes(k as AssetKind)) return null;
+    if (!out.includes(k as AssetKind)) out.push(k as AssetKind);
+  }
   return out.length ? out : null;
 }
 
@@ -121,6 +127,34 @@ async function postConfirm(req: Request, who: CameraCaller, store: CashStore, re
     else missing.push(k);
   }
   return reply({ ok: missing.length === 0, event_id: ev.event_uid, confirmed, missing }, 200);
+}
+
+// Decides who may call what. Camera devices: /cash/* only. Everyone else: no /cash device routes.
+// Returns null when the request may continue, otherwise the refusal.
+export function cashGate(who: { channel?: string; isDevice: boolean }, path: string): { status: number; error: string } | null {
+  if (who.channel === "camera") return path.startsWith("/cash/") && path !== "/cash/images" ? null : { status: 403, error: "camera devices can only use /cash" };
+  if (path.startsWith("/cash/") && path !== "/cash/images") return { status: 403, error: "camera devices only" };
+  if (path === "/cash/images" && who.isDevice) return { status: 403, error: "Daybook only" };
+  return null;
+}
+
+// POST /cash/images { event_ids: [uuid...] } (Daybook login only) -> short-lived signed view links for the review screen.
+// Only the caller's own events are returned. Links expire in 10 minutes. Bucket stays private.
+export async function handleImages(req: Request, ownerId: string, store: CashStore, reply: Reply): Promise<Response> {
+  const r = await readJson(req);
+  if (!r.ok) return reply({ ok: false, error: r.res.error }, r.res.status);
+  const ids = (r.body as any)?.event_ids;
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!Array.isArray(ids) || !ids.length || ids.length > 50 || !ids.every((x) => typeof x === "string" && UUID.test(x))) {
+    return reply({ ok: false, error: "event_ids must be 1-50 event uuids" }, 400);
+  }
+  const rows = await store.ownedEventPaths(ownerId, ids);
+  const items: Record<string, unknown> = {};
+  for (const row of rows) {
+    const one = async (p: string | null) => (p && p.startsWith(ownerId + "/") ? await store.signedView(p, 600) : null);
+    items[row.id] = { raw: await one(row.snapshot_raw_path), annotated: await one(row.snapshot_annotated_path), clip: await one(row.clip_path) };
+  }
+  return reply({ ok: true, expires_in_seconds: 600, items });
 }
 
 // Camera device routes. Returns null if the path is not a /cash route.

@@ -2,5 +2,10 @@
   "name": "daybook-cash-tests",
   "private": true,
   "type": "module",
-  "scripts": { "test": "node --test --experimental-strip-types ." }
+  "scripts": {
+    "test": "node --test --experimental-strip-types ."
+  },
+  "devDependencies": {
+    "pg": "8.13.1"
+  }
 }

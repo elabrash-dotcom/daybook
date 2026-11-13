@@ -52,13 +52,13 @@ test("anon sees nothing and cannot read", () => {
 });
 
 test("owner can set a label and note; stamp columns are filled by trigger", () => {
-  must(as("authenticated", A, "update cash_events set label='correct_sale', label_note='checked' where event_uid='ev-A1'"));
+  must(as("authenticated", A, "update cash_events set label='confirmed_cash', label_note='checked' where event_uid='ev-A1'"));
   const out = must(psql(DB, "select label, labelled_by::text, (labelled_at is not null)::text from cash_events where event_uid='ev-A1'"));
-  assert.equal(out, `correct_sale|${A}|true`);
+  assert.equal(out, `confirmed_cash|${A}|true`);
 });
 
 test("owner cannot label someone else's event (0 rows touched)", () => {
-  const out = must(as("authenticated", A, "with u as (update cash_events set label='no_sale' where event_uid='ev-B1' returning 1) select count(*) from u")).split("\n").pop();
+  const out = must(as("authenticated", A, "with u as (update cash_events set label='false_detection' where event_uid='ev-B1' returning 1) select count(*) from u")).split("\n").pop();
   assert.equal(out, "0");
   assert.equal(must(psql(DB, "select coalesce(label,'none') from cash_events where event_uid='ev-B1'")), "none");
 });
