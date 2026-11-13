@@ -9,17 +9,20 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import * as cma from "./cma.ts";
+import { handleCash, handleDeviceAdmin } from "./cash.ts";
+import { supabaseCashStore } from "./cash_store.ts";
 
 const sb = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   { auth: { persistSession: false } },
 );
+const cashStore = supabaseCashStore(sb);
 
 const CORS = {
   "Access-Control-Allow-Origin": "*", // bearer-token auth, no cookies
   "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
-  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS", // Jetson uploads go straight to Supabase signed URLs
 };
 
 const json = (body: unknown, status = 200) =>
@@ -102,6 +105,9 @@ type Caller = {
   ownerId: string;
   isDevice: boolean;
   via: "daybook" | "voice" | "glasses" | "shortcut";
+  deviceId?: string;
+  channel?: string; // device channel: glasses | phone | voice | camera
+  storeKey?: string | null;
 };
 
 async function authenticate(req: Request): Promise<Caller | null> {
@@ -113,14 +119,14 @@ async function authenticate(req: Request): Promise<Caller | null> {
     const hash = await sha256hex(token);
     const { data } = await sb
       .from("agent_devices")
-      .select("id, owner_id, channel")
+      .select("*") // "*" so auth keeps working even before the Cash Audit migration adds store_key
       .eq("token_hash", hash)
       .is("revoked_at", null)
       .maybeSingle();
     if (!data) return null;
     await sb.from("agent_devices").update({ last_seen_at: new Date().toISOString() }).eq("id", data.id);
     const via = data.channel === "glasses" ? "glasses" : data.channel === "voice" ? "voice" : "shortcut";
-    return { ownerId: data.owner_id, isDevice: true, via };
+    return { ownerId: data.owner_id, isDevice: true, via, deviceId: data.id, channel: data.channel, storeKey: data.store_key ?? null };
   }
 
   const { data, error } = await sb.auth.getUser(token);
@@ -176,6 +182,19 @@ Deno.serve(async (req) => {
   if (!who) return json({ error: "unauthorised" }, 401);
 
   try {
+    // Cash Audit. Camera devices may ONLY use /cash/*; every other caller is refused there.
+    if (who.channel === "camera") {
+      if (!path.startsWith("/cash/")) return json({ error: "camera devices can only use /cash" }, 403);
+      if (!who.storeKey || !who.deviceId) return json({ error: "device has no store" }, 403);
+      const res = await handleCash(req, path, { ownerId: who.ownerId, deviceId: who.deviceId, storeKey: who.storeKey }, cashStore, json);
+      return res ?? json({ error: "not found" }, 404);
+    }
+    if (path.startsWith("/cash/")) return json({ error: "camera devices only" }, 403);
+    if (path === "/admin/devices" || path === "/admin/devices/revoke") {
+      if (who.isDevice) return json({ error: "Daybook only" }, 403);
+      return (await handleDeviceAdmin(req, path, who.ownerId, cashStore, json, sha256hex)) ?? json({ error: "not found" }, 404);
+    }
+
     // GET /status?agent=stockwise -> what is set up, for the Agents > Setup tab (Daybook only)
     if (path === "/status" && req.method === "GET") {
       if (who.isDevice) return json({ error: "Daybook only" }, 403);
