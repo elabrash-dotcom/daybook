@@ -714,6 +714,24 @@ body.askopen{overflow:hidden}
 .agah{font-size:14px;color:var(--ink-2);font-weight:700}
 .agat{white-space:pre-wrap;word-break:break-word;background:var(--soft);border-radius:12px;padding:10px 12px;font-size:15px;line-height:1.4}
 .agfine{font-size:12.5px;color:var(--ink-3);font-weight:700}
+.agfilt.cashfilt{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding:2px}
+.agfilt.cashfilt::-webkit-scrollbar{display:none}
+.cashbox{position:relative;border-radius:14px;overflow:hidden;background:var(--soft);line-height:0}
+.cashimg{display:block;width:100%;height:auto;max-height:70vh;object-fit:contain}
+.cashov{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.cashov rect{fill:rgba(255,217,61,.12);stroke:#ffd93d;stroke-width:3}
+.cashnone{background:var(--soft);border-radius:14px;padding:22px 14px;text-align:center;color:var(--ink-2);font-weight:700;font-size:15px;line-height:1.4}
+.cashseg{display:inline-flex;background:var(--soft);border-radius:999px;padding:3px;gap:2px}
+.cashseg button{height:34px;padding:0 16px;border-radius:999px;font-weight:800;font-size:14.5px}
+.cashseg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.cashseg button:disabled{opacity:.35}
+.cashkv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:12px 0;font-size:14.5px}
+.cashkv span{color:var(--ink-3);font-weight:700}
+.cashkv b{font-weight:800;word-break:break-word}
+.cashlbls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0 10px}
+.cashlbl{min-height:56px;border-radius:16px;background:var(--soft);font-weight:800;font-size:15.5px;display:flex;align-items:center;justify-content:center;gap:8px;padding:6px 8px;text-align:center}
+.cashlbl.on{background:var(--ink);color:var(--bg)}
+.cashnote{width:100%;border-radius:14px;background:var(--soft);padding:10px 12px;font-size:16px;margin:4px 0 10px;resize:vertical}
 .agacts{display:flex;gap:8px;flex-wrap:wrap}
 .agbtn{flex:1;min-width:120px;height:52px;border-radius:16px;font-weight:800;font-size:17px;color:#fff}
 .agbtn.ok{background:#2FA66A}
@@ -863,6 +881,14 @@ let db = null, synced = null;
 let people = [], projects = [], tasks = [], shop = [], shopQ = '', shEditId = null, beach = [], notes = [], overOpen = false, marks = [], markLabels = [], calScroll = false, calMonth = null, kids = [], kidPts = [], kAnim = null, nProj = null, nFix = false, nQ = '', nShowFixed = false, nEditId = null, nFocus = false, bAddGrp = null, bConfirm = false, bMoveId = null, bQuick = null, bQFocus = false, bIFocus = false;
 let sel = null;          // selected date
 let filter = {personId:null, projectId:null};   // independent facets, either or both may be set
+const CASH_PAGE = 20;
+const CASH_COLS = 'id,store_key,event_uid,detected_at,kind,confidence,track_id,bbox,detections,frame_width,frame_height,snapshot_raw_path,snapshot_annotated_path,clip_path,match_status,matched_payment_id,match_delta_seconds,label,label_note';
+const CASH_LABELS = [{v:'confirmed_cash', e:'✅', t:'Confirmed Cash', s:'Cash'}, {v:'false_detection', e:'❌', t:'False Detection', s:'False'}, {v:'unsure', e:'❓', t:'Unsure', s:'Unsure'}, {v:'other', e:'➕', t:'Other', s:'Other'}];
+const CASH_STORES = {mcc:'MCC', mobiletek:'Mobiletek'};
+let cashHas = false, cashTodo = 0, cashLoaded = false, cashLoading = false, cashEvents = [], cashMore = false, cashLimit = CASH_PAGE, cashErr = '', cashSeq = 0, cashToReview = 0;
+let cashFilt = {range:'today', day:'', store:'', label:'all'};
+let cashOpenId = null, cashImgs = {}, cashSide = {}, cashBoxes = true, cashNew = false, cashChan = null;
+let cashRestoreScroll = false;
 let mode = 'day';        // day | history
 let histLimit = 60, showSomeday = false, tq = null, tsFocus = false;
 // Agents section state (see the Agents block further down)
@@ -1021,7 +1047,7 @@ function renderTools(){
   const nFixOpen = notes.filter(x=>x.kind==='fix'&&!x.done).length, half = kids.length ? ' half' : ' beachbar';
   h += `<button type="button" class="laterbar notebar${half}" data-notes aria-label="Open notes"><span class="lic">${I.note}</span><span class="ltxt"><b>Notes</b><small>${notes.length ? notes.length + ' note' + (notes.length>1?'s':'') + (nFixOpen ? ' · ' + nFixOpen + ' to fix' : '') : (kids.length ? 'Quick thoughts' : 'Quick thoughts, no pressure')}</small></span>${kids.length ? '' : `<span class="lchev">${I.right}</span>`}</button>`;
   if(kids.length) h += `<button type="button" class="laterbar kidsbar half" data-kids aria-label="Open kids game"><span class="lic kav">${allKids().map(k=>{ const sc = kidScore(k.id), ph = kidPhoto(k); return `<i style="background:${esc(k.color||'#3B82F6')}">${ph ? `<img src="${esc(ph)}" alt="">` : esc(kidInitial(k))}<b>${window.PX ? PX.face(PX.mood(sc.yes, sc.no), 1.1) : ''}</b></i>`; }).join('')}</span><span class="ltxt"><b>Kids</b><small>${allKids().map(k=>{ const sc = kidScore(k.id), d = sc.yes - sc.no; return `<span class="${d>0?'kup':d<0?'kdown':''}">${d>0?'+':d<0?'−':''}${Math.abs(d)}</span>`; }).join(' · ')}</small></span></button>`;
-  h += renderCalTile() + renderBeach(true) + renderAgentTile();
+  h += renderCalTile() + renderBeach(true) + renderAgentTile() + renderCashTile();
   h += `</div>`;
   return h + `</div></div>`;
 }
@@ -1656,6 +1682,7 @@ function render(){
   $('#top').style.display = (hist||ov||rv||lt||sp||sh2||bp||np||kp||cp) ? 'none' : 'flex';
   $('#qa').style.display = (hist||ov||rv||lt||sp||sh2||bp||np||kp||cp) ? 'none' : 'flex';
   if(mode==='agents'){ $('#top').style.display = 'none'; $('#qa').style.display = 'none'; agRender(); return; }
+  if(mode==='cash'){ $('#top').style.display = 'none'; $('#qa').style.display = 'none'; cashRender(); return; }
   if(hist){ $('#rest').innerHTML = renderHistory(); return; }
   if(ov){ $('#rest').innerHTML = renderOverview(); return; }
   if(rv){ $('#rest').innerHTML = renderReminders(); return; }
@@ -2400,9 +2427,9 @@ function startSync(){
   db.doc('settings/app').onSnapshot(d => { if(d.exists){ settings = {...settings, ...d.data()}; render(); } }, ()=>{});
   sub('people', v=>people=v); sub('projects', v=>projects=v); sub('tasks', v=>tasks=v); sub('shopping', v=>shop=v); sub('beach', v=>beach=v); sub('notes', v=>notes=v); sub('kids', v=>kids=v); sub('kid_points', v=>kidPts=v); sub('mark_labels', v=>markLabels=v); sub('day_marks', v=>marks=v);
   // Deferred: startSync runs inside onAuthStateChange, where awaiting getSession() can deadlock.
-  setTimeout(() => { agStart(); if(agFromUrl(location.href)) history.replaceState(null, '', location.pathname); }, 0);
+  setTimeout(() => { agStart(); cashStart(); if(agFromUrl(location.href)) history.replaceState(null, '', location.pathname); }, 0);
 }
-function stopSync(){ if(db && db.teardown) db.teardown(); db = null; synced = null; agStop(); }
+function stopSync(){ if(db && db.teardown) db.teardown(); db = null; synced = null; agStop(); cashStop(); }
 
 function showApp(){
   $('#loginwrap').style.display = 'none';
@@ -2430,6 +2457,215 @@ sb.auth.onAuthStateChange((event, session) => {
   if(session) showApp(); else showLogin();
 });
 sb.auth.getSession().then(({data}) => { if(data.session) showApp(); else showLogin(); });
+
+/* ---------- Cash Audit: review camera cash events. Daybook login only; images come from short-lived signed links. ---------- */
+const cashStoreName = k => CASH_STORES[k] || k || '—';
+
+function cashBase(q, withLabel){
+  const b = agBounds(cashFilt.range, cashFilt.day);
+  q = q.not('store_key', 'ilike', '%fairfield%');               // the Fairfield testing account is never shown
+  if(b.from) q = q.gte('detected_at', b.from);
+  if(b.to) q = q.lt('detected_at', b.to);
+  if(cashFilt.store) q = q.eq('store_key', cashFilt.store);
+  if(withLabel){ if(cashFilt.label === 'todo') q = q.is('label', null); else if(cashFilt.label !== 'all') q = q.eq('label', cashFilt.label); }
+  return q;
+}
+async function cashLoad(){
+  const my = ++cashSeq; cashLoading = true; cashErr = ''; if(mode === 'cash') render();
+  try{
+    const [list, todo] = await Promise.all([
+      cashBase(sb.from('cash_events').select(CASH_COLS), true).order('detected_at', {ascending: false}).limit(cashLimit + 1),
+      cashBase(sb.from('cash_events').select('id', {count:'exact', head:true}), false).is('label', null),
+    ]);
+    if(my !== cashSeq) return;
+    if(list.error) throw list.error;
+    cashEvents = (list.data || []).slice(0, cashLimit); cashMore = (list.data || []).length > cashLimit;
+    cashToReview = todo.count || 0; cashLoaded = true; cashNew = false;
+  }catch(e){ if(my !== cashSeq) return; cashErr = 'Couldn’t load events: ' + (e && e.message ? e.message : e); }
+  cashLoading = false; if(mode === 'cash') render();
+}
+async function cashStart(){
+  try{
+    const t = sydMs(today(), '00:00');
+    const [a, b] = await Promise.all([
+      sb.from('cash_events').select('id', {count:'exact', head:true}).not('store_key', 'ilike', '%fairfield%'),
+      sb.from('cash_events').select('id', {count:'exact', head:true}).not('store_key', 'ilike', '%fairfield%').is('label', null).gte('detected_at', new Date(t).toISOString()),
+    ]);
+    cashHas = !a.error && (a.count || 0) > 0; cashTodo = b.count || 0;           // table missing or empty: tile stays hidden
+    if(!a.error && !cashChan){
+      cashChan = sb.channel('cash-events').on('postgres_changes', {event:'INSERT', schema:'public', table:'cash_events'}, () => {
+        cashHas = true; cashTodo++; cashNew = true; if(mode === 'cash' || mode === 'day') render();
+      }).subscribe();
+    }
+  }catch(_){ cashHas = false; }
+  if(mode === 'day') render();
+}
+function cashStop(){ if(cashChan){ try{ sb.removeChannel(cashChan); }catch(_){} cashChan = null; } cashHas = false; cashLoaded = false; cashEvents = []; cashImgs = {}; cashOpenId = null; cashSeq++; }
+function cashOpen(){
+  mode = 'cash'; tq = null; cashOpenId = null; render(); window.scrollTo({top:0});
+  cashLimit = CASH_PAGE; cashLoad();
+}
+function renderCashTile(){
+  if(!cashHas) return '';
+  const sub = cashTodo ? cashTodo + ' to review today' : 'Camera cash events';
+  return `<button type="button" class="laterbar cashtool" data-cash aria-label="Open Cash audit"><span class="lic">💵</span><span class="ltxt"><b>Cash audit</b><small>${esc(sub)}</small></span>${cashTodo ? `<span class="lcount hot">${cashTodo}</span>` : `<span class="lchev">${I.right}</span>`}</button>`;
+}
+
+// Images: asked for only when an event is opened. Links last 10 minutes; reused until 9 minutes old.
+async function cashImages(id, force){
+  const c = cashImgs[id];
+  if(!force && c && (c.loading || (c.at && Date.now() - c.at < 9 * 60e3))) return;
+  cashImgs[id] = {loading: true, at: 0};
+  try{
+    const r = await agCall('POST', '/cash/images', {event_ids: [id]});
+    cashImgs[id] = {...(r.items && r.items[id] || {raw:null, annotated:null, clip:null}), at: Date.now()};
+  }catch(e){ cashImgs[id] = {err: e.message, at: Date.now() - 8.5 * 60e3}; }
+  if(mode === 'cash' && cashOpenId === id) render();
+}
+function cashToNorm(b, ev){
+  if(!b || typeof b !== 'object') return null;
+  const x = +b.x, y = +b.y, w = +b.w, h = +b.h; if(![x, y, w, h].every(Number.isFinite) || w <= 0 || h <= 0) return null;
+  if(b.norm) return {x, y, w, h};
+  const fw = +ev.frame_width, fh = +ev.frame_height;
+  return fw > 0 && fh > 0 ? {x: x / fw, y: y / fh, w: w / fw, h: h / fh} : null;
+}
+function cashBoxList(ev){
+  const out = []; const add = b => { const n = cashToNorm(b, ev); if(n) out.push({...n, label: b.label || '', conf: b.confidence}); };
+  if(Array.isArray(ev.detections) && ev.detections.length) ev.detections.forEach(add); else add(ev.bbox);
+  return out;
+}
+const cashPct = c => c == null ? '' : Math.round(c * 100) + '%';
+function cashImgBlock(ev){
+  const im = cashImgs[ev.id] || {};
+  const hasRaw = !!ev.snapshot_raw_path, hasAnn = !!ev.snapshot_annotated_path;
+  if(!hasRaw && !hasAnn) return `<div class="cashnone">📷 No snapshot uploaded for this event yet.</div>`;
+  let side = cashSide[ev.id] || (hasRaw ? 'raw' : 'annotated');
+  if(side === 'raw' && !hasRaw) side = 'annotated'; if(side === 'annotated' && !hasAnn) side = 'raw';
+  const seg = `<div class="cashseg" role="group" aria-label="Snapshot view"><button type="button" data-cashside="raw" aria-pressed="${side === 'raw'}"${hasRaw ? '' : ' disabled'}>Raw</button><button type="button" data-cashside="annotated" aria-pressed="${side === 'annotated'}"${hasAnn ? '' : ' disabled'}>Annotated</button></div>`;
+  const note = !hasRaw ? `<div class="agfine">Older event: only the annotated snapshot was saved.</div>` : (!hasAnn ? `<div class="agfine">Only the raw snapshot is available.</div>` : '');
+  const url = im[side];
+  let body;
+  if(im.loading || (!url && !im.err && !im.at)) body = `<div class="cashnone">Loading snapshot…</div>`;
+  else if(im.err) body = `<div class="cashnone">Couldn’t load the snapshot (${esc(im.err)}). <button type="button" class="agchip" data-cashretry="1">Try again</button></div>`;
+  else if(!url) body = `<div class="cashnone">This snapshot isn’t available.</div>`;
+  else {
+    const boxes = side === 'raw' && cashBoxes ? cashBoxList(ev) : [];
+    const svg = boxes.length ? `<svg class="cashov" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">${boxes.map(b => `<rect x="${(b.x * 1000).toFixed(1)}" y="${(b.y * 1000).toFixed(1)}" width="${(b.w * 1000).toFixed(1)}" height="${(b.h * 1000).toFixed(1)}" vector-effect="non-scaling-stroke"/>`).join('')}</svg>` : '';
+    body = `<div class="cashbox"><img class="cashimg" data-cashimg="${esc(ev.id)}" src="${esc(url)}" alt="${side === 'raw' ? 'Raw' : 'Annotated'} snapshot" decoding="async">${svg}</div>`;
+  }
+  const tog = side === 'raw' && cashBoxList(ev).length ? `<button type="button" class="agchip" data-cashboxes="1" aria-pressed="${cashBoxes}">▭ Boxes</button>` : '';
+  const clip = im.clip ? `<a class="agchip" href="${esc(im.clip)}" target="_blank" rel="noopener">▶ Clip</a>` : '';
+  return `<div class="agfilt">${seg}${tog}${clip}</div>${note}${body}`;
+}
+function cashMatchText(ev){
+  if(ev.match_status === 'matched') return `💵 Matched to a POS cash sale${ev.match_delta_seconds != null ? ' (' + Math.abs(Math.round(ev.match_delta_seconds)) + 's apart)' : ''}`;
+  if(ev.match_status === 'unmatched') return '⚠️ No matching POS cash sale found';
+  if(ev.match_status === 'ignored') return 'Ignored for matching';
+  return 'POS match: not checked yet';
+}
+function cashDetail(ev, idx){
+  const ms = Date.parse(ev.detected_at);
+  const rows = [
+    ['Time', ms ? dayLabel(sydYmd(ms)) + ' · ' + timeOf(ms) : '—'], ['Store', cashStoreName(ev.store_key)],
+    ev.kind ? ['Type', ev.kind] : null, ev.confidence != null ? ['Confidence', cashPct(ev.confidence)] : null,
+    ev.track_id ? ['Track ID', ev.track_id] : null, ev.frame_width && ev.frame_height ? ['Frame', ev.frame_width + ' × ' + ev.frame_height] : null,
+    ['POS match', cashMatchText(ev)], ['Event ID', ev.event_uid],
+  ].filter(Boolean);
+  const dets = Array.isArray(ev.detections) && ev.detections.length > 1 ? `<div class="agfine">${ev.detections.length} detections in this frame</div>` : '';
+  const lbls = CASH_LABELS.map(l => `<button type="button" class="cashlbl${ev.label === l.v ? ' on' : ''}" data-cashlabel="${l.v}" aria-pressed="${ev.label === l.v}"><span>${l.e}</span>${l.t}</button>`).join('');
+  const next = cashEvents.slice(idx + 1).find(e => !e.label);
+  return `<div class="agbody cashdet">${cashImgBlock(ev)}${dets}
+    <div class="cashkv">${rows.map(r => `<span>${esc(r[0])}</span><b>${esc(r[1])}</b>`).join('')}</div>
+    <h5>Your label</h5><div class="cashlbls">${lbls}</div>
+    ${ev.label ? `<textarea id="cashNote" class="cashnote" rows="2" maxlength="500" placeholder="Note (optional)" aria-label="Note">${esc(ev.label_note || '')}</textarea><div class="agacts"><button type="button" class="agbtn ok" data-cashnote="1">Save note</button>${next ? '<button type="button" class="agbtn" style="background:var(--ink);color:var(--bg)" data-cashnext="' + esc(next.id) + '">Next to review ›</button>' : ''}</div>` : ''}
+  </div>`;
+}
+function cashFilters(){
+  const C = (k, v, l) => `<button type="button" class="agchip" data-cashf="${k}.${v}" aria-pressed="${cashFilt[k] === v}">${l}</button>`;
+  const stores = ['mcc', 'mobiletek'].map(k => C('store', k, cashStoreName(k))).join('');
+  return `<div class="agfilt cashfilt">${C('range', 'today', 'Today')}${C('range', '7d', '7 days')}${C('range', '30d', '30 days')}${C('range', 'all', 'All')}<label class="agdatel${cashFilt.day ? ' on' : ''}">📅 ${cashFilt.day ? esc(dayLabel(cashFilt.day)) : 'Pick a day'}<input type="date" id="cashDay" value="${esc(cashFilt.day)}" max="${today()}" aria-label="Pick a day"></label></div>`
+    + `<div class="agfilt cashfilt"><button type="button" class="agchip" data-cashf="store.all" aria-pressed="${!cashFilt.store}">All stores</button>${stores}</div>`
+    + `<div class="agfilt cashfilt">${C('label', 'all', 'All')}${C('label', 'todo', '● To review')}${CASH_LABELS.map(l => C('label', l.v, l.e + ' ' + l.s)).join('')}</div>`;
+}
+function renderCash(){
+  let h = `<button class="back" data-back>${I.left}Back</button><div class="head"><h3 style="font-size:28px">Cash audit</h3><span class="ts" style="margin-left:auto">${cashToReview} to review</span></div><div class="agpage">`;
+  h += cashFilters();
+  if(cashNew) h += `<button type="button" class="agchip" data-cashrefresh="1" style="align-self:flex-start">🔔 New events — tap to refresh</button>`;
+  if(cashErr) h += `<div class="empty"><b>Something went wrong</b>${esc(cashErr)}<br><button type="button" class="agchip" data-cashrefresh="1">Try again</button></div>`;
+  else if(!cashLoaded && cashLoading) h += `<div class="empty"><b>Loading…</b></div>`;
+  else if(!cashEvents.length) h += `<div class="empty"><b>No events</b>Nothing matches these filters.</div>`;
+  else {
+    h += '<div class="aglist">'; let lastDay = '';
+    cashEvents.forEach((ev, i) => {
+      const ms = Date.parse(ev.detected_at), d = ms ? sydYmd(ms) : '';
+      if(d && d !== lastDay){ lastDay = d; h += `<div class="agday">${esc(dayLabel(d))}</div>`; }
+      const open = cashOpenId === ev.id, lab = CASH_LABELS.find(l => l.v === ev.label);
+      const sev = lab ? (ev.label === 'confirmed_cash' ? '#2FA66A' : ev.label === 'false_detection' ? '#E0473A' : '#E8A317') : '#8a8f98';
+      h += `<div class="agcard cashcard" style="--sev:${sev}"><button type="button" class="aghead" data-cashopen="${esc(ev.id)}" aria-expanded="${open}"><div class="agmeta">${lab ? `<span class="agsev">${lab.e} ${lab.t}</span>` : '<span class="agdot" aria-label="To review"></span><span class="agsev">To review</span>'}<span class="agshop ${ev.store_key === 'mcc' ? 'mcc' : ev.store_key === 'mobiletek' ? 'mt' : ''}">${esc(cashStoreName(ev.store_key))}</span><span class="agtime">${esc(ms ? timeOf(ms) : '')}</span></div><div class="aghl">Cash handling${ev.confidence != null ? ' · ' + cashPct(ev.confidence) : ''}</div>${ev.track_id ? `<div class="agprev">Track ${esc(ev.track_id)}${ev.snapshot_raw_path || ev.snapshot_annotated_path ? '' : ' · no snapshot yet'}</div>` : ''}</button>${open ? cashDetail(ev, i) : ''}</div>`;
+    });
+    h += '</div>';
+    if(cashMore) h += `<button type="button" class="agmore" data-cashmore="1">Show ${CASH_PAGE} more</button>`;
+  }
+  return h + '</div>';
+}
+function cashRender(){ const y = window.scrollY; $('#rest').innerHTML = renderCash(); if(cashRestoreScroll){ cashRestoreScroll = false; window.scrollTo({top:y}); } }
+
+async function cashSetLabel(id, v){
+  const ev = cashEvents.find(e => e.id === id); if(!ev) return;
+  const prev = {label: ev.label, note: ev.label_note};
+  const nl = ev.label === v ? null : v;
+  ev.label = nl; if(!nl) ev.label_note = null;
+  if(!prev.label && nl) cashToReview = Math.max(0, cashToReview - 1); else if(prev.label && !nl) cashToReview++;
+  cashRestoreScroll = true; render();
+  const {error} = await sb.from('cash_events').update({label: nl, label_note: nl ? (ev.label_note || null) : null}).eq('id', id);
+  if(error){ ev.label = prev.label; ev.label_note = prev.note; if(!prev.label && nl) cashToReview++; else if(prev.label && !nl) cashToReview = Math.max(0, cashToReview - 1); toast('Couldn’t save the label: ' + error.message); cashRestoreScroll = true; render(); return; }
+  cashStart();
+}
+async function cashSaveNote(id){
+  const ev = cashEvents.find(e => e.id === id), ta = $('#cashNote'); if(!ev || !ta || !ev.label) return;
+  const note = ta.value.trim().slice(0, 500) || null;
+  const {error} = await sb.from('cash_events').update({label_note: note}).eq('id', id);
+  if(error){ toast('Couldn’t save the note: ' + error.message); return; }
+  ev.label_note = note; toast('Note saved');
+}
+function cashSelect(id){
+  cashOpenId = cashOpenId === id ? null : id; cashRestoreScroll = true; render();
+  const ev = cashEvents.find(e => e.id === id);
+  if(cashOpenId && ev && (ev.snapshot_raw_path || ev.snapshot_annotated_path || ev.clip_path)) cashImages(id);
+}
+$('#app').addEventListener('click', e => {
+  const t = e.target.closest('button'); if(!t) return;
+  if('cash' in t.dataset){ cashOpen(); return; }
+  if(mode !== 'cash') return;
+  const d = t.dataset;
+  if(d.cashopen) cashSelect(d.cashopen);
+  else if(d.cashlabel && cashOpenId) cashSetLabel(cashOpenId, d.cashlabel);
+  else if(d.cashnote && cashOpenId) cashSaveNote(cashOpenId);
+  else if(d.cashnext){ cashOpenId = null; cashSelect(d.cashnext); const el = document.querySelector('[data-cashopen="' + d.cashnext + '"]'); if(el) el.scrollIntoView({block:'start'}); }
+  else if(d.cashside && cashOpenId){ cashSide[cashOpenId] = d.cashside; cashRestoreScroll = true; render(); }
+  else if(d.cashboxes){ cashBoxes = !cashBoxes; cashRestoreScroll = true; render(); }
+  else if(d.cashretry && cashOpenId){ cashImages(cashOpenId, true); render(); }
+  else if(d.cashmore){ cashLimit += CASH_PAGE; cashLoad(); }
+  else if(d.cashrefresh){ cashLimit = CASH_PAGE; cashLoad(); cashStart(); }
+  else if(d.cashf){
+    const [k, ...r] = d.cashf.split('.'), v = r.join('.');
+    if(k === 'range'){ cashFilt.range = v; cashFilt.day = ''; }
+    else if(k === 'store') cashFilt.store = v === 'all' || cashFilt.store === v ? '' : v;
+    else if(k === 'label') cashFilt.label = v;
+    cashOpenId = null; cashLimit = CASH_PAGE; cashLoad();
+  }
+});
+$('#app').addEventListener('change', e => {
+  if(mode !== 'cash' || !e.target || e.target.id !== 'cashDay') return;
+  const v = e.target.value;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(v)){ cashFilt.day = v; cashFilt.range = 'day'; } else { cashFilt.day = ''; cashFilt.range = 'today'; }
+  cashOpenId = null; cashLimit = CASH_PAGE; cashLoad();
+});
+// A signed link can expire while a page sits open: ask for fresh ones once and redraw.
+document.addEventListener('error', e => {
+  const im = e.target && e.target.dataset && e.target.dataset.cashimg;
+  if(im && mode === 'cash'){ const c = cashImgs[im]; if(c && !c.retried){ cashImgs[im] = {loading:true, at:0, retried:true}; cashImages(im, true).then(() => { if(cashImgs[im]) cashImgs[im].retried = true; }); } }
+}, true);
 
 /* ---------- Agents: feed of cards, approvals strip, chat (via agent-gateway) ---------- */
 const AG_FN = SUPABASE_URL + '/functions/v1/agent-gateway';
