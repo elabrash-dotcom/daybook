@@ -7,12 +7,13 @@ import {
 export type CameraCaller = { ownerId: string; deviceId: string; storeKey: string };
 
 export type EventRow = NormalEvent & { owner_id: string; device_id: string; store_key: string };
-export type StoredEvent = { id: string; owner_id: string; store_key: string; detected_at: string; event_uid: string };
+export type StoredEvent = { id: string; owner_id: string; store_key: string; detected_at: string; received_at?: string; event_uid: string };
 
 export interface CashStore {
   recentEventCount(deviceId: string, sinceIso: string): Promise<number>;
   insertEvent(row: Record<string, unknown>): Promise<"created" | "duplicate">;
   findEvent(deviceId: string, eventUid: string): Promise<StoredEvent | null>;
+  cameraUploadOpen?(id: string): Promise<boolean>;
   signedUpload(path: string): Promise<{ url: string; token: string }>;
   objectSize(path: string): Promise<number | null>;
   signedView(path: string, seconds: number): Promise<string | null>;
@@ -78,11 +79,11 @@ async function postEvents(req: Request, who: CameraCaller, store: CashStore, rep
 }
 
 function parseKinds(v: unknown): AssetKind[] | null {
-  const arr = Array.isArray(v) ? v : ["raw", "annotated", "clip"];
+  const arr = v === undefined ? ["raw", "annotated"] : Array.isArray(v) ? v : [];
   const out: AssetKind[] = [];
   for (const raw of arr) {
     const k = raw === "snapshot" ? "annotated" : raw; // legacy single snapshot = the annotated frame
-    if (!ASSET_KINDS.includes(k as AssetKind)) return null;
+    if (k === "clip" || !ASSET_KINDS.includes(k as AssetKind)) return null;
     if (!out.includes(k as AssetKind)) out.push(k as AssetKind);
   }
   return out.length ? out : null;
@@ -99,9 +100,10 @@ async function postUploads(req: Request, who: CameraCaller, store: CashStore, re
   const r = await readJson(req);
   if (!r.ok) return reply({ ok: false, error: r.res.error }, r.res.status);
   const kinds = parseKinds((r.body as any)?.kinds);
-  if (!kinds) return reply({ ok: false, error: "kinds must be a list of raw, annotated, clip" }, 400);
+  if (!kinds) return reply({ ok: false, error: "kinds must be a list of raw or annotated" }, 400);
   const ev = await loadEvent(r.body, who, store);
   if (!ev) return reply({ ok: false, error: "unknown event_id: send the event first" }, 404);
+  if (store.cameraUploadOpen && !(await store.cameraUploadOpen(ev.id))) return reply({ error: "initial upload window closed" }, 409);
   const uploads: Record<string, unknown> = {};
   for (const k of kinds) {
     const path = assetPath(ev.owner_id, ev.store_key, ev.detected_at, ev.event_uid, k);
@@ -116,7 +118,7 @@ async function postConfirm(req: Request, who: CameraCaller, store: CashStore, re
   const r = await readJson(req);
   if (!r.ok) return reply({ ok: false, error: r.res.error }, r.res.status);
   const kinds = parseKinds((r.body as any)?.kinds);
-  if (!kinds) return reply({ ok: false, error: "kinds must be a list of raw, annotated, clip" }, 400);
+  if (!kinds) return reply({ ok: false, error: "kinds must be a list of raw or annotated" }, 400);
   const ev = await loadEvent(r.body, who, store);
   if (!ev) return reply({ ok: false, error: "unknown event_id" }, 404);
   const confirmed: string[] = [], missing: string[] = [];

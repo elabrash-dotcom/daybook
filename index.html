@@ -882,7 +882,7 @@ let people = [], projects = [], tasks = [], shop = [], shopQ = '', shEditId = nu
 let sel = null;          // selected date
 let filter = {personId:null, projectId:null};   // independent facets, either or both may be set
 const CASH_PAGE = 20;
-const CASH_COLS = 'id,store_key,event_uid,detected_at,kind,confidence,track_id,bbox,detections,frame_width,frame_height,snapshot_raw_path,snapshot_annotated_path,clip_path,match_status,matched_payment_id,match_delta_seconds,label,label_note';
+const CASH_COLS = 'id,preserve,store_key,event_uid,detected_at,kind,confidence,track_id,bbox,detections,frame_width,frame_height,snapshot_raw_path,snapshot_annotated_path,clip_path,match_status,matched_payment_id,match_delta_seconds,label,label_note';
 const CASH_LABELS = [{v:'confirmed_cash', e:'✅', t:'Confirmed Cash', s:'Cash'}, {v:'false_detection', e:'❌', t:'False Detection', s:'False'}, {v:'unsure', e:'❓', t:'Unsure', s:'Unsure'}, {v:'other', e:'➕', t:'Other', s:'Other'}];
 const CASH_STORES = {mcc:'MCC', mobiletek:'Mobiletek'};
 let cashHas = false, cashTodo = 0, cashLoaded = false, cashLoading = false, cashEvents = [], cashMore = false, cashLimit = CASH_PAGE, cashErr = '', cashSeq = 0, cashToReview = 0;
@@ -2576,6 +2576,7 @@ function cashDetail(ev, idx){
   const next = cashEvents.slice(idx + 1).find(e => !e.label);
   return `<div class="agbody cashdet">${cashImgBlock(ev)}${dets}
     <div class="cashkv">${rows.map(r => `<span>${esc(r[0])}</span><b>${esc(r[1])}</b>`).join('')}</div>
+    <button type="button" class="agbtn" data-cashhold="${ev.preserve ? 0 : 1}" aria-pressed="${ev.preserve}">${ev.preserve ? "Release evidence hold" : "Preserve evidence"}</button>
     <h5>Your label</h5><div class="cashlbls">${lbls}</div>
     ${ev.label ? `<textarea id="cashNote" class="cashnote" rows="2" maxlength="500" placeholder="Note (optional)" aria-label="Note">${esc(ev.label_note || '')}</textarea><div class="agacts"><button type="button" class="agbtn ok" data-cashnote="1">Save note</button>${next ? '<button type="button" class="agbtn" style="background:var(--ink);color:var(--bg)" data-cashnext="' + esc(next.id) + '">Next to review ›</button>' : ''}</div>` : ''}
   </div>`;
@@ -2639,6 +2640,16 @@ $('#app').addEventListener('click', e => {
   if(mode !== 'cash') return;
   const d = t.dataset;
   if(d.cashopen) cashSelect(d.cashopen);
+  else if(d.cashhold !== undefined && cashOpenId){
+    const id = cashOpenId, hold = d.cashhold === '1';
+    if(!hold && !confirm('Release this hold and resume scheduled retention?')) return;
+    t.disabled = true;
+    sb.from('cash_events').update({preserve:hold}).eq('id', id).select('id,preserve').single().then(({data,error})=>{
+      if(error || !data){ t.disabled=false; toast('Evidence hold could not be saved'); return; }
+      const ev=cashEvents.find(x=>x.id===id); if(ev) ev.preserve=data.preserve;
+      render();
+    });
+  }
   else if(d.cashlabel && cashOpenId) cashSetLabel(cashOpenId, d.cashlabel);
   else if(d.cashnote && cashOpenId) cashSaveNote(cashOpenId);
   else if(d.cashnext){ cashOpenId = null; cashSelect(d.cashnext); const el = document.querySelector('[data-cashopen="' + d.cashnext + '"]'); if(el) el.scrollIntoView({block:'start'}); }

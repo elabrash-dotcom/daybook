@@ -1,0 +1,12 @@
+[Unit]
+Description=Daybook evidence retention
+After=network-online.target
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/daybook-retention.env
+ExecStart=/opt/daybook-retention/venv/bin/python /opt/daybook-retention/worker.py
+DynamicUser=yes
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict

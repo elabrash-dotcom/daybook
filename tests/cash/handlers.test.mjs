@@ -97,14 +97,15 @@ test("unknown /cash route -> 404; non-cash path -> null (falls through)", async 
   assert.equal(await handleCash(new Request("http://x/feed"), "/feed", who, memStore(), reply, NOW), null);
 });
 
-test("uploads: signed URLs for raw + annotated + clip under owner/store/day/event", async () => {
+test("uploads: signed URLs for raw + annotated under owner/store/day/event", async () => {
   const s = memStore();
   await post("/cash/events", ev("e1"), s);
   const r = await jsonOf(await post("/cash/uploads", { event_id: "e1" }, s));
   assert.equal(r.status, 200);
   assert.equal(r.uploads.raw.path, "OWN/mcc/2026-11-13/e1/raw.jpg");
   assert.equal(r.uploads.annotated.content_type, "image/jpeg");
-  assert.equal(r.uploads.clip.path, "OWN/mcc/2026-11-13/e1/clip.mp4");
+  assert.equal(r.uploads.clip, undefined);
+  assert.equal((await post("/cash/uploads", { event_id:"e1", kinds:["clip"] }, s)).status,400);
   assert.ok(r.uploads.raw.url.startsWith("https://storage.example/upload/OWN/"));
   const one = await jsonOf(await post("/cash/uploads", { event_id: "e1", kinds: ["annotated"] }, s));
   assert.deepEqual(Object.keys(one.uploads), ["annotated"]);
@@ -124,7 +125,7 @@ test("confirm: only files that really exist are recorded; partial = not ok but s
   s.objects.set("OWN/mcc/2026-11-13/e1/annotated.jpg", 120_000);
   s.objects.set("OWN/mcc/2026-11-13/e1/clip.mp4", 99_000_000); // over the 10 MB cap -> not accepted
   const r = await jsonOf(await post("/cash/assets/confirm", { event_id: "e1" }, s));
-  assert.deepEqual([r.confirmed, r.missing], [["annotated"], ["raw", "clip"]]);
+  assert.deepEqual([r.confirmed, r.missing], [["annotated"], ["raw"]]);
   const row = [...s.events.values()][0];
   assert.equal(row.snapshot_annotated_path, "OWN/mcc/2026-11-13/e1/annotated.jpg"); assert.equal(row.snapshot_raw_path, undefined);
   s.objects.set("OWN/mcc/2026-11-13/e1/raw.jpg", 90_000);

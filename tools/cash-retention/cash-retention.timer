@@ -1,0 +1,8 @@
+[Unit]
+Description=Daily Daybook evidence retention
+[Timer]
+OnCalendar=*-*-* 03:15:00
+Persistent=true
+RandomizedDelaySec=10m
+[Install]
+WantedBy=timers.target

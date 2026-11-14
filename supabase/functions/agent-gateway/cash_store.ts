@@ -21,13 +21,18 @@ export function supabaseCashStore(sb: SupabaseClient): CashStore {
       return data && data.length ? "created" : "duplicate";
     },
     async findEvent(deviceId, eventUid) {
-      const { data, error } = await sb.from("cash_events").select("id, owner_id, store_key, detected_at, event_uid")
+      const { data, error } = await sb.from("cash_events").select("id, owner_id, store_key, detected_at, received_at, event_uid")
         .eq("device_id", deviceId).eq("event_uid", eventUid).maybeSingle();
       if (error) throw error;
       return data ?? null;
     },
+    async cameraUploadOpen(id) {
+      const { data,error } = await sb.rpc("cash_camera_upload_open",{event_key:id});
+      if (error) throw error;
+      return data === true;
+    },
     async signedUpload(path) {
-      const { data, error } = await sb.storage.from(BUCKET).createSignedUploadUrl(path, { upsert: true });
+      const { data, error } = await sb.storage.from(BUCKET).createSignedUploadUrl(path, { upsert: false });
       if (error || !data) throw error ?? new Error("no signed url");
       return { url: data.signedUrl, token: data.token };
     },
@@ -50,7 +55,7 @@ export function supabaseCashStore(sb: SupabaseClient): CashStore {
       return data ?? [];
     },
     async setAssetPath(eventId, column, path) {
-      const { error } = await sb.from("cash_events").update({ [column]: path, assets_confirmed_at: new Date().toISOString() }).eq("id", eventId);
+      const { error } = await sb.from("cash_events").update({ [column]: path, assets_confirmed_at: new Date().toISOString() }).eq("id", eventId).is(column, null);
       if (error) throw error;
     },
     async createDevice(d) {

@@ -76,19 +76,19 @@ await step("6. duplicate protection and validation", async () => {
 let urls;
 await step("7. signed uploads (synthetic images only)", async () => {
   check((await gw("POST", "/cash/uploads", cam, { event_id: "does-not-exist" })).status === 404, "upload links for an unknown event -> 404");
-  const r = await gw("POST", "/cash/uploads", cam, { event_id: RUN + "-1", kinds: ["raw", "annotated", "clip"] });
-  check(r.status === 200 && r.body.uploads.raw && r.body.uploads.annotated && r.body.uploads.clip, "signed upload links issued", JSON.stringify(r.body).slice(0, 200));
+  const r = await gw("POST", "/cash/uploads", cam, { event_id: RUN + "-1", kinds: ["raw", "annotated"] });
+  check(r.status === 200 && r.body.uploads.raw && r.body.uploads.annotated && !r.body.uploads.clip, "signed upload links issued", JSON.stringify(r.body).slice(0, 200));
   urls = r.body.uploads;
   check(urls.raw.path.startsWith(owner.id + "/" + STORE + "/"), "storage path is owner/store/…");
   const bad = await fetch(tamper(urls.raw.url), { method: "PUT", headers: { "content-type": "image/jpeg" }, body: RAW }); check(bad.status >= 400, "tampered upload link refused (" + bad.status + ")");
   const wrong = await fetch(urls.raw.url, { method: "PUT", headers: { "content-type": "text/html" }, body: "<b>x</b>" }); check(wrong.status >= 400, "wrong content type refused (" + wrong.status + ")");
-  for (const [k, buf, ct] of [["raw", RAW, "image/jpeg"], ["annotated", ANN, "image/jpeg"], ["clip", CLIP, "video/mp4"]]) {
+  for (const [k, buf, ct] of [["raw", RAW, "image/jpeg"], ["annotated", ANN, "image/jpeg"]]) {
     const p = await fetch(urls[k].url, { method: "PUT", headers: { "content-type": ct }, body: buf }); check(p.status === 200, `PUT ${k} -> 200`, p.status + " " + await p.text());
   }
 });
 await step("8. confirm", async () => {
-  const r = await gw("POST", "/cash/assets/confirm", cam, { event_id: RUN + "-1", kinds: ["raw", "annotated", "clip"] });
-  check(r.status === 200 && r.body.ok === true && r.body.confirmed.length === 3, "all three files confirmed", JSON.stringify(r.body));
+  const r = await gw("POST", "/cash/assets/confirm", cam, { event_id: RUN + "-1", kinds: ["raw", "annotated"] });
+  check(r.status === 200 && r.body.ok === true && r.body.confirmed.length === 2, "both images confirmed", JSON.stringify(r.body));
   const again = await gw("POST", "/cash/assets/confirm", cam, { event_id: RUN + "-1" }); check(again.body.ok === true, "confirm is repeatable");
   const miss = await gw("POST", "/cash/assets/confirm", cam, { event_id: RUN + "-3", kinds: ["raw"] }); check(miss.body.ok === false && miss.body.missing[0] === "raw", "event with no upload reports missing");
 });
