@@ -717,9 +717,21 @@ body.askopen{overflow:hidden}
 .agfilt.cashfilt{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding:2px}
 .agfilt.cashfilt::-webkit-scrollbar{display:none}
 .cashbox{position:relative;border-radius:14px;overflow:hidden;background:var(--soft);line-height:0}
-.cashimg{display:block;width:100%;height:auto;max-height:70vh;object-fit:contain}
+.cashimg{display:block;width:100%;height:auto;max-height:70vh;object-fit:contain;cursor:zoom-in}
 .cashov{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .cashov rect{fill:rgba(255,217,61,.12);stroke:#ffd93d;stroke-width:3}
+.cashview{position:fixed;inset:0;z-index:10000;background:rgba(8,7,6,.98);color:#fff;display:flex;flex-direction:column;overscroll-behavior:none;touch-action:none}
+.cashviewbar{height:max(58px,calc(42px + env(safe-area-inset-top)));padding:env(safe-area-inset-top) 12px 0;display:flex;align-items:center;justify-content:space-between;gap:12px;box-sizing:border-box;position:relative;z-index:2}
+.cashviewbar b{font-size:15px;letter-spacing:.01em}
+.cashviewclose,.cashviewzoom button{width:42px;height:42px;border-radius:999px;background:rgba(255,255,255,.14);color:#fff;display:grid;place-items:center;font-size:22px;font-weight:800}
+.cashviewclose svg{width:20px;height:20px}
+.cashviewstage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;cursor:grab}
+.cashviewimg{position:absolute;left:50%;top:50%;max-width:none;max-height:none;transform-origin:center center;will-change:transform;-webkit-user-drag:none;user-select:none;-webkit-user-select:none}
+.cashviewfoot{min-height:max(72px,calc(56px + env(safe-area-inset-bottom)));padding:8px 14px env(safe-area-inset-bottom);display:flex;align-items:center;justify-content:space-between;gap:12px;box-sizing:border-box;position:relative;z-index:2}
+.cashviewhint{font-size:12.5px;font-weight:700;color:rgba(255,255,255,.7)}
+.cashviewzoom{display:flex;gap:8px;align-items:center}
+.cashviewzoom output{min-width:42px;text-align:center;font-size:13px;font-weight:800}
+@media (max-width:430px){.cashviewhint{max-width:160px}.cashviewzoom button{width:38px;height:38px}}
 .cashnone{background:var(--soft);border-radius:14px;padding:22px 14px;text-align:center;color:var(--ink-2);font-weight:700;font-size:15px;line-height:1.4}
 .cashseg{display:inline-flex;background:var(--soft);border-radius:999px;padding:3px;gap:2px}
 .cashseg button{height:34px;padding:0 16px;border-radius:999px;font-weight:800;font-size:14.5px}
@@ -887,7 +899,7 @@ const CASH_LABELS = [{v:'confirmed_cash', e:'✅', t:'Confirmed Cash', s:'Cash'}
 const CASH_STORES = {mcc:'MCC', mobiletek:'Mobiletek'};
 let cashHas = false, cashTodo = 0, cashLoaded = false, cashLoading = false, cashEvents = [], cashMore = false, cashLimit = CASH_PAGE, cashErr = '', cashSeq = 0, cashToReview = 0;
 let cashFilt = {range:'today', day:'', store:'', label:'all'};
-let cashOpenId = null, cashImgs = {}, cashSide = {}, cashBoxes = true, cashNew = false, cashChan = null;
+let cashOpenId = null, cashImgs = {}, cashSide = {}, cashBoxes = true, cashNew = false, cashChan = null, cashViewerClose = null;
 let cashRestoreScroll = false;
 let mode = 'day';        // day | history
 let histLimit = 60, showSomeday = false, tq = null, tsFocus = false;
@@ -2500,7 +2512,7 @@ async function cashStart(){
   }catch(_){ cashHas = false; }
   if(mode === 'day') render();
 }
-function cashStop(){ if(cashChan){ try{ sb.removeChannel(cashChan); }catch(_){} cashChan = null; } cashHas = false; cashLoaded = false; cashEvents = []; cashImgs = {}; cashOpenId = null; cashSeq++; }
+function cashStop(){ if(cashViewerClose) cashViewerClose(); if(cashChan){ try{ sb.removeChannel(cashChan); }catch(_){} cashChan = null; } cashHas = false; cashLoaded = false; cashEvents = []; cashImgs = {}; cashOpenId = null; cashSeq++; }
 function cashOpen(){
   mode = 'cash'; tq = null; cashOpenId = null; render(); window.scrollTo({top:0});
   cashLimit = CASH_PAGE; cashLoad();
@@ -2539,7 +2551,7 @@ function cashImgBlock(ev){
   const im = cashImgs[ev.id] || {};
   const hasRaw = !!ev.snapshot_raw_path, hasAnn = !!ev.snapshot_annotated_path;
   if(!hasRaw && !hasAnn) return `<div class="cashnone">📷 No snapshot uploaded for this event yet.</div>`;
-  let side = cashSide[ev.id] || (hasRaw ? 'raw' : 'annotated');
+  let side = cashSide[ev.id] || (hasAnn ? 'annotated' : 'raw');
   if(side === 'raw' && !hasRaw) side = 'annotated'; if(side === 'annotated' && !hasAnn) side = 'raw';
   const seg = `<div class="cashseg" role="group" aria-label="Snapshot view"><button type="button" data-cashside="raw" aria-pressed="${side === 'raw'}"${hasRaw ? '' : ' disabled'}>Raw</button><button type="button" data-cashside="annotated" aria-pressed="${side === 'annotated'}"${hasAnn ? '' : ' disabled'}>Annotated</button></div>`;
   const note = !hasRaw ? `<div class="agfine">Older event: only the annotated snapshot was saved.</div>` : (!hasAnn ? `<div class="agfine">Only the raw snapshot is available.</div>` : '');
@@ -2551,11 +2563,58 @@ function cashImgBlock(ev){
   else {
     const boxes = side === 'raw' && cashBoxes ? cashBoxList(ev) : [];
     const svg = boxes.length ? `<svg class="cashov" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">${boxes.map(b => `<rect x="${(b.x * 1000).toFixed(1)}" y="${(b.y * 1000).toFixed(1)}" width="${(b.w * 1000).toFixed(1)}" height="${(b.h * 1000).toFixed(1)}" vector-effect="non-scaling-stroke"/>`).join('')}</svg>` : '';
-    body = `<div class="cashbox"><img class="cashimg" data-cashimg="${esc(ev.id)}" src="${esc(url)}" alt="${side === 'raw' ? 'Raw' : 'Annotated'} snapshot" decoding="async">${svg}</div>`;
+    body = `<div class="cashbox"><img class="cashimg" data-cashimg="${esc(ev.id)}" src="${esc(url)}" alt="${side === 'raw' ? 'Raw' : 'Annotated'} snapshot — tap to enlarge" decoding="async">${svg}</div>`;
   }
   const tog = side === 'raw' && cashBoxList(ev).length ? `<button type="button" class="agchip" data-cashboxes="1" aria-pressed="${cashBoxes}">▭ Boxes</button>` : '';
   const clip = im.clip ? `<a class="agchip" href="${esc(im.clip)}" target="_blank" rel="noopener">▶ Clip</a>` : '';
   return `<div class="agfilt">${seg}${tog}${clip}</div>${note}${body}`;
+}
+function cashViewOpen(id){
+  const ev = cashEvents.find(x => x.id === id), im = cashImgs[id] || {};
+  if(!ev) return;
+  const hasRaw = !!ev.snapshot_raw_path && !!im.raw, hasAnn = !!ev.snapshot_annotated_path && !!im.annotated;
+  let side = cashSide[id] || (hasAnn ? 'annotated' : 'raw');
+  if(side === 'raw' && !hasRaw) side = 'annotated'; if(side === 'annotated' && !hasAnn) side = 'raw';
+  const url = im[side]; if(!url) return;
+  if(cashViewerClose) cashViewerClose();
+  const prior = document.activeElement, oldOverflow = document.body.style.overflow;
+  const root = document.createElement('div');
+  root.className = 'cashview'; root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', (side === 'raw' ? 'Raw' : 'Annotated') + ' cash snapshot');
+  root.innerHTML = `<div class="cashviewbar"><button type="button" class="cashviewclose" aria-label="Close image">${I.x}</button><b>${side === 'raw' ? 'Raw' : 'Annotated'} snapshot</b><span style="width:42px" aria-hidden="true"></span></div><div class="cashviewstage"><img class="cashviewimg" src="${esc(url)}" alt="${side === 'raw' ? 'Raw' : 'Annotated'} cash event snapshot" draggable="false"></div><div class="cashviewfoot"><span class="cashviewhint">Pinch to zoom · swipe down to close</span><div class="cashviewzoom" aria-label="Zoom controls"><button type="button" data-cvz="out" aria-label="Zoom out">−</button><output aria-live="polite">100%</output><button type="button" data-cvz="in" aria-label="Zoom in">+</button></div></div>`;
+  document.body.appendChild(root); document.body.style.overflow = 'hidden';
+  const stage = root.querySelector('.cashviewstage'), img = root.querySelector('.cashviewimg'), output = root.querySelector('output');
+  let scale = 1, tx = 0, ty = 0, baseW = 1, baseH = 1, gesture = null, dismissed = false;
+  const clamp = () => { const r = stage.getBoundingClientRect(), mx = Math.max(0, (baseW * scale - r.width) / 2), my = Math.max(0, (baseH * scale - r.height) / 2); tx = Math.max(-mx, Math.min(mx, tx)); ty = Math.max(-my, Math.min(my, ty)); };
+  const paint = () => { clamp(); img.style.transform = `translate(-50%,-50%) translate3d(${tx}px,${ty}px,0) scale(${scale})`; output.value = Math.round(scale * 100) + '%'; };
+  const fit = () => { if(!img.naturalWidth || !img.naturalHeight) return; const r = stage.getBoundingClientRect(), f = Math.min(r.width / img.naturalWidth, r.height / img.naturalHeight); baseW = Math.max(1, img.naturalWidth * f); baseH = Math.max(1, img.naturalHeight * f); img.style.width = baseW + 'px'; img.style.height = baseH + 'px'; paint(); };
+  const zoomAt = (next, x, y) => { const r = stage.getBoundingClientRect(), ns = Math.max(1, Math.min(5, next)), cx = x - r.left - r.width / 2, cy = y - r.top - r.height / 2, ratio = ns / scale; tx = cx - (cx - tx) * ratio; ty = cy - (cy - ty) * ratio; scale = ns; if(scale === 1){ tx = 0; ty = 0; } paint(); };
+  const dist = t => Math.hypot(t[1].clientX - t[0].clientX, t[1].clientY - t[0].clientY);
+  const mid = t => ({x:(t[0].clientX + t[1].clientX) / 2, y:(t[0].clientY + t[1].clientY) / 2});
+  const close = () => { if(dismissed) return; dismissed = true; cashViewerClose = null; window.removeEventListener('resize', fit); document.removeEventListener('keydown', key); root.remove(); document.body.style.overflow = oldOverflow; if(prior && prior.focus) prior.focus({preventScroll:true}); };
+  const key = e => { if(e.key === 'Escape') close(); };
+  cashViewerClose = close;
+  img.addEventListener('load', fit); if(img.complete) fit();
+  window.addEventListener('resize', fit); document.addEventListener('keydown', key);
+  root.querySelector('.cashviewclose').addEventListener('click', close);
+  root.querySelector('.cashviewzoom').addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return; const r = stage.getBoundingClientRect(); zoomAt(b.dataset.cvz === 'in' ? scale * 1.5 : scale / 1.5, r.left + r.width / 2, r.top + r.height / 2); });
+  stage.addEventListener('dblclick', e => zoomAt(scale > 1 ? 1 : 2.5, e.clientX, e.clientY));
+  stage.addEventListener('wheel', e => { e.preventDefault(); zoomAt(scale * (e.deltaY < 0 ? 1.15 : .87), e.clientX, e.clientY); }, {passive:false});
+  stage.addEventListener('touchstart', e => {
+    if(e.touches.length === 2){ const m = mid(e.touches), r = stage.getBoundingClientRect(); gesture = {kind:'pinch', d:dist(e.touches), s:scale, qx:(m.x-r.left-r.width/2-tx)/scale, qy:(m.y-r.top-r.height/2-ty)/scale}; }
+    else if(e.touches.length === 1){ const t=e.touches[0]; gesture={kind:scale > 1 ? 'pan' : 'dismiss', x:t.clientX, y:t.clientY, tx, ty}; }
+  }, {passive:false});
+  stage.addEventListener('touchmove', e => {
+    if(!gesture) return; e.preventDefault();
+    if(e.touches.length === 2 && gesture.kind === 'pinch'){ const m=mid(e.touches), r=stage.getBoundingClientRect(); scale=Math.max(1,Math.min(5,gesture.s*dist(e.touches)/gesture.d)); tx=m.x-r.left-r.width/2-gesture.qx*scale; ty=m.y-r.top-r.height/2-gesture.qy*scale; paint(); }
+    else if(e.touches.length === 1 && gesture.kind === 'pan'){ const t=e.touches[0]; tx=gesture.tx+t.clientX-gesture.x; ty=gesture.ty+t.clientY-gesture.y; paint(); }
+    else if(e.touches.length === 1 && gesture.kind === 'dismiss'){ const t=e.touches[0], dy=Math.max(0,t.clientY-gesture.y); root.style.transform=`translateY(${dy}px)`; root.style.opacity=String(Math.max(.35,1-dy/500)); }
+  }, {passive:false});
+  stage.addEventListener('touchend', e => {
+    if(e.touches.length === 1 && gesture && gesture.kind === 'pinch'){ const t=e.touches[0]; gesture={kind:scale > 1 ? 'pan' : 'dismiss',x:t.clientX,y:t.clientY,tx,ty}; return; }
+    if(!e.touches.length && gesture && gesture.kind === 'dismiss'){ const dy=(e.changedTouches[0]?.clientY || gesture.y)-gesture.y; if(dy > 100){ close(); return; } root.style.transform=''; root.style.opacity=''; }
+    if(!e.touches.length) gesture=null;
+  }, {passive:false});
+  setTimeout(() => root.querySelector('.cashviewclose').focus({preventScroll:true}), 0);
 }
 function cashMatchText(ev){
   if(ev.match_status === 'matched') return `💵 Matched to a POS cash sale${ev.match_delta_seconds != null ? ' (' + Math.abs(Math.round(ev.match_delta_seconds)) + 's apart)' : ''}`;
@@ -2635,6 +2694,7 @@ function cashSelect(id){
   if(cashOpenId && ev && (ev.snapshot_raw_path || ev.snapshot_annotated_path || ev.clip_path)) cashImages(id);
 }
 $('#app').addEventListener('click', e => {
+  const shot = e.target.closest('[data-cashimg]'); if(shot && mode === 'cash'){ cashViewOpen(shot.dataset.cashimg); return; }
   const t = e.target.closest('button'); if(!t) return;
   if('cash' in t.dataset){ cashOpen(); return; }
   if(mode !== 'cash') return;
