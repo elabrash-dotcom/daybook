@@ -12,7 +12,7 @@ const scheds = [
   {label:'morning', name:'Morning brief', cron:'30 8 * * *', status:'active', next:null},
   {label:'early', name:'Early read', cron:'0 11 * * *', status:'paused', next:null},
 ];
-const calls = [], errors = []; let failNext = false;
+const calls = [], errors = []; let failNext = false, setupCalls = 0;
 (async () => {
   const br = await chromium.launch(); const ctx = await br.newContext({...devices['iPhone 13']});
   await ctx.addInitScript(([k, v]) => { try{ localStorage.setItem(k, v); }catch(_){} }, ['sb-scjfvvwylrgpbrmdsjxb-auth-token', JSON.stringify(sess)]);
@@ -24,6 +24,7 @@ const calls = [], errors = []; let failNext = false;
     const J = (o, st=200) => r.fulfill({status:st, contentType:'application/json', headers:H, body: JSON.stringify(o)});
     if(m === 'OPTIONS') return r.fulfill({status:204, headers:H});
     if(u.pathname.endsWith('/admin/schedule')){ const b = JSON.parse(r.request().postData()); calls.push(b); if(failNext){ failNext = false; return J({error:'boom'}, 500); } const x = scheds.find(s => s.label === b.label); x.status = b.on ? 'active' : 'paused'; return J({ok:true, label:b.label, status:x.status}); }
+    if(u.pathname.endsWith('/admin/setup')){ setupCalls++; await new Promise(r => setTimeout(r, 400)); scheds[0].status = 'active'; return J({ok:true, done:['agent updated','8 schedules ready (on)']}); }
     if(u.pathname.endsWith('/status')) return J({key:true, webhook_key:true, webhook_url:'x', setup:true, setup_at:new Date().toISOString(), stockwise:true, stockwise_at:new Date().toISOString(), schedules_on:true, schedules:scheds, synced:0});
     if(u.pathname.endsWith('/feed')) return J({cards:[], has_more:false, unread:0});
     if(u.pathname.startsWith('/functions/v1/')) return J({ok:true});
@@ -42,8 +43,15 @@ const calls = [], errors = []; let failNext = false;
   await pg.waitForSelector('.agrr');
   const rows = await pg.locator('.agrr').allInnerTexts();
   ok(rows[0].includes('Every 15 min') && rows[0].includes('9am–6:45pm'), 'cash sync shows "Every 15 min · 9am–6:45pm": ' + rows[0].replace(/\n/g, ' '));
-  ok(/not set up/.test(rows[0]) && await pg.locator('.agrr').nth(0).locator('[data-agschedt]').count() === 0, 'unset schedule explains itself and has no switch');
+  ok(await pg.locator('.agrr').nth(0).locator('[data-agdo="setup"]').count() === 1 && await pg.locator('.agrr').nth(0).locator('[data-agschedt]').count() === 0, 'a schedule that does not exist yet has a Create button, not a dead switch');
+  ok(/Create/.test(await pg.locator('.agfine').first().innerText()), 'hint tells you to tap Create');
   ok(await pg.locator('[data-agschedt="morning"][aria-checked="true"]').count() === 1 && await pg.locator('[data-agschedt="early"][aria-checked="false"]').count() === 1, 'switches show On/Off from the server state');
+  await pg.locator('.agrr').nth(0).locator('[data-agdo="setup"]').click();
+  await pg.waitForSelector('.agrr [data-agdo="setup"][disabled]', {timeout: 2000});
+  ok(true, 'button shows a busy state while the agent updates');
+  await pg.waitForSelector('[data-agschedt="cash_sync"]', {timeout: 8000});
+  ok(setupCalls === 1, 'Create calls /admin/setup exactly once');
+  ok(await pg.locator('[data-agschedt="cash_sync"][aria-checked="true"]').count() === 1, 'afterwards the cash sync row has its on/off switch, switched on');
   await pg.click('[data-agschedt="morning"]'); await pg.waitForTimeout(300);
   ok(calls.length === 1 && calls[0].label === 'morning' && calls[0].on === false, 'switching Morning brief off posts {label, on:false}');
   ok(await pg.locator('[data-agschedt="morning"][aria-checked="false"]').count() === 1, 'switch moves immediately');

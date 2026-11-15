@@ -3117,8 +3117,10 @@ function agSetup(){
       + (agTimesOpen ? st.schedules.map(x => { const set = x.status === 'active' || x.status === 'paused';
           return `<div class="agrr"><span>${esc(x.name)}</span><span>${esc(agCronText(x.cron))}</span>${set
             ? `<button type="button" class="agsw2" role="switch" aria-checked="${x.status === 'active'}" aria-label="${esc(x.name)}" data-agschedt="${esc(x.label)}" data-on="${x.status === 'active' ? 0 : 1}"><i></i></button>`
-            : `<span class="agrs">${esc(x.status)}</span>`}</div>`; }).join('') : '')
-      + (agTimesOpen && st.schedules.some(x => x.status === 'not set up') ? `<div class="agfine">One or more schedules aren’t set up yet. Open Setup above and tap Update to create them.</div>` : '')
+            : (x.status === 'not set up' && st.key
+              ? `<button type="button" class="agsbtn" data-agdo="setup"${agBusy === 'setup' ? ' disabled' : ''}>${agBusy === 'setup' ? 'Creating…' : 'Create'}</button>`
+              : `<span class="agrs">${esc(x.status)}</span>`)}</div>`; }).join('') : '')
+      + (agTimesOpen && st.schedules.some(x => x.status === 'not set up') ? `<div class="agfine">Not created yet: tap <b>Create</b> on the row. This also refreshes the StockWise agent (takes a few seconds).</div>` : '')
       + `</div>`;
   }
   const RR = (v, l) => `<button type="button" class="agchip" data-agf="run.range.${v}" aria-pressed="${agRunRange === v}">${l}</button>`;
