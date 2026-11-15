@@ -242,6 +242,10 @@ Deno.serve(async (req) => {
       const body = await req.json().catch(() => ({}));
       const row = await agentRow(who.ownerId, body?.agent);
       if (path === "/admin/setup") return json({ ok: true, done: await cma.setup(sb, row) });
+      if (path === "/admin/schedule") {
+        const label = typeof body?.label === "string" ? body.label : "";
+        return json({ ok: true, label, status: await cma.setSchedule(sb, row, label, body?.on === true) });
+      }
       if (path === "/admin/schedules") { await cma.setSchedules(sb, row, body?.on === true); return json({ ok: true, on: body?.on === true }); }
       if (path === "/admin/stockwise/connect") {
         const back = safeReturn(body?.return_to);
