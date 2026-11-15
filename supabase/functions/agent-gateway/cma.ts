@@ -189,6 +189,18 @@ export async function setSchedules(sb: SupabaseClient, row: AgentRow, on: boolea
   await saveCfg(sb, row, cfg);
 }
 
+// Pause or resume ONE schedule (the master switch above handles all of them).
+export async function setSchedule(_sb: SupabaseClient, row: AgentRow, label: string, on: boolean) {
+  if (!SCHEDULES.runs.some((r) => r.label === label)) throw new HttpError(400, "unknown schedule");
+  const id = row.config?.deployments?.[label];
+  if (!id) throw new HttpError(409, "This schedule isn't set up yet. Open Setup and tap Update first.");
+  const c = client();
+  const d = await c.beta.deployments.retrieve(id);
+  if (on && d.status === "paused") await c.beta.deployments.unpause(id);
+  if (!on && d.status === "active") await c.beta.deployments.pause(id);
+  return on ? "active" : "paused";
+}
+
 export async function scheduleList(row: AgentRow) {
   const cfg = row.config ?? {};
   const out: { label: string; name: string; cron: string; status: string; next: string | null }[] = [];

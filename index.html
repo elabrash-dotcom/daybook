@@ -817,6 +817,10 @@ body.askopen{overflow:hidden}
 .agrr span:nth-child(2){color:var(--ink-3);font-size:12.5px}
 .agrs{min-width:62px;text-align:right}
 .agrs.ok{color:#2FA66A}.agrs.bad{color:var(--danger)}
+.agsw2{position:relative;width:54px;height:32px;border-radius:999px;background:var(--soft);box-shadow:inset 0 0 0 2px var(--line);flex:none;transition:background .15s}
+.agsw2 i{position:absolute;top:4px;left:4px;width:24px;height:24px;border-radius:50%;background:var(--ink-3);transition:transform .15s,background .15s}
+.agsw2[aria-checked="true"]{background:#2FA66A;box-shadow:none}
+.agsw2[aria-checked="true"] i{transform:translateX(22px);background:#fff}
 .agfilt{display:flex;flex-wrap:wrap;gap:8px;padding:2px;align-items:center}
 .agfilt::-webkit-scrollbar{display:none}
 .agchip{flex:none;height:40px;padding:0 14px;border-radius:999px;background:var(--surface);font-weight:800;font-size:14.5px;box-shadow:var(--shadow);white-space:nowrap}
@@ -3069,7 +3073,10 @@ function agRender(){
 const AG_DOW = {'*':'Daily', '1-6':'Mon–Sat', '1-5':'Mon–Fri', '0':'Sun', '1':'Mon', '6':'Sat'};
 function agCronText(c){
   const p = String(c || '').split(' '); if(p.length !== 5) return c;
-  const h = +p[1], m = +p[0], t = (h % 12 || 12) + (m ? ':' + String(m).padStart(2, '0') : '') + (h < 12 ? 'am' : 'pm');
+  const f = (h, m) => (h % 12 || 12) + (m ? ':' + String(m).padStart(2, '0') : '') + (h < 12 ? 'am' : 'pm');
+  const step = /^\*\/(\d+)$/.exec(p[0]), rng = /^(\d+)-(\d+)$/.exec(p[1]);
+  if(step && rng) return 'Every ' + step[1] + ' min · ' + f(+rng[1], 0) + '–' + f(+rng[2], 60 - +step[1]);
+  const h = +p[1], m = +p[0], t = f(h, m);
   const dom = p[2] !== '*' ? (p[2].includes('-') ? ' from the ' + p[2].split('-')[0] + 'th' : ' on the ' + p[2] + 'th') : '';
   return (dom ? 'Daily' + dom : (AG_DOW[p[4]] || p[4])) + ' · ' + t;
 }
@@ -3107,7 +3114,11 @@ function agSetup(){
   if(st.schedules && st.schedules.length){
     const onN = st.schedules.filter(x => x.status === 'active').length;
     h += `<div class="agcard agruns" style="--sev:#4ad6ff"><button type="button" class="agrh agtoggle" data-agtimes aria-expanded="${agTimesOpen}"><span>⏰ Times (Sydney) · ${onN} of ${st.schedules.length} on</span><span>${agTimesOpen ? '▴' : '▾'}</span></button>`
-      + (agTimesOpen ? st.schedules.map(x => `<div class="agrr"><span>${esc(x.name)}</span><span>${esc(agCronText(x.cron))}</span><span class="agrs ${x.status === 'active' ? 'ok' : ''}">${esc(x.status === 'active' ? 'On' : x.status === 'paused' ? 'Off' : x.status)}</span></div>`).join('') : '')
+      + (agTimesOpen ? st.schedules.map(x => { const set = x.status === 'active' || x.status === 'paused';
+          return `<div class="agrr"><span>${esc(x.name)}</span><span>${esc(agCronText(x.cron))}</span>${set
+            ? `<button type="button" class="agsw2" role="switch" aria-checked="${x.status === 'active'}" aria-label="${esc(x.name)}" data-agschedt="${esc(x.label)}" data-on="${x.status === 'active' ? 0 : 1}"><i></i></button>`
+            : `<span class="agrs">${esc(x.status)}</span>`}</div>`; }).join('') : '')
+      + (agTimesOpen && st.schedules.some(x => x.status === 'not set up') ? `<div class="agfine">One or more schedules aren’t set up yet. Open Setup above and tap Update to create them.</div>` : '')
       + `</div>`;
   }
   const RR = (v, l) => `<button type="button" class="agchip" data-agf="run.range.${v}" aria-pressed="${agRunRange === v}">${l}</button>`;
@@ -3128,6 +3139,14 @@ async function agDo(k){
     else if(k === 'sched'){ const on = !(agStatus && agStatus.schedules_on); await agCall('POST', '/admin/schedules', {agent: a.slug, on}); toast(on ? 'Schedules on ⏰' : 'Schedules paused'); }
   }catch(e){ toast('Couldn’t do that: ' + e.message); }
   agBusy = ''; agStatus = agStatus || null; await agLoadStatus(); agKick('all');
+}
+async function agSchedToggle(label, on){
+  const a = agCur(); if(!a || agBusy) return; agBusy = 'sched1';
+  const x = agStatus && agStatus.schedules && agStatus.schedules.find(r => r.label === label), prev = x && x.status;
+  if(x) x.status = on ? 'active' : 'paused'; render();
+  try{ await agCall('POST', '/admin/schedule', {agent: a.slug, label, on}); toast(on ? 'Switched on ⏰' : 'Paused'); }
+  catch(e){ if(x) x.status = prev; toast('Couldn’t do that: ' + e.message); }
+  agBusy = ''; render(); agLoadStatus();
 }
 function renderAgentTile(){
   if(!agAgents.length) return '';
@@ -3223,6 +3242,7 @@ $('#app').addEventListener('click', e => {
   else if(b.dataset.agf) agFilter(b.dataset.agf);
   else if(b.dataset.agmore) agMore(b.dataset.agmore);
   else if('agtimes' in b.dataset){ agTimesOpen = !agTimesOpen; render(); }
+  else if(b.dataset.agschedt){ agSchedToggle(b.dataset.agschedt, b.dataset.on === '1'); }
   else if('agsetupt' in b.dataset){ agSetupOpen = !agSetupOpen; render(); }
 });
 $('#app').addEventListener('submit', e => { if(e.target.id !== 'agForm') return; e.preventDefault(); agSend(); });
