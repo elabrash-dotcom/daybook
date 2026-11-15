@@ -1,0 +1,3 @@
+.private-backups/
+supabase/.temp/
+**/__pycache__/
