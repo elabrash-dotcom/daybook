@@ -54,3 +54,26 @@ The UI test caught a real bug during development (a variable used before it was 
 - Retention period and workplace surveillance notice for snapshots.
 - POS matching itself, the 7 PM Sydney report, and a retention job (later phases).
 - Realtime "new events" banner is wired but untested against real Supabase Realtime.
+
+---
+# Phase 2 reconciliation: production go-live (15 Nov 2026)
+
+## What was deployed
+- Migration `cash_audit_phase2` (applied to production after a private backup, schema `cash_backup_20261115`): reconciliation settings, match audit trail, daily reports, manual review, `cash_apply_reconciliation` / `cash_manual_reconciliation` (service role only), and the `cash-audit-phase2-tick` pg_cron job (every 5 minutes).
+- `agent-gateway` v13 (8 files, verified byte-identical to this repo). v12 source is saved as the rollback copy.
+- Review screen with statuses, manual match/clear/needs-review, POS exceptions and the daily report card.
+
+## Store mapping (verified)
+The camera reports store key `mcc`, which the gateway pins to the StockWise store id `744a2cca-638a-41ee-ae7c-9930877b7c7c` (MCC Eastern Creek). MccFairfield (`3f8758cf-…`) had **zero** invoices on 14–15 Nov, while Eastern Creek's five cash invoices landed within seconds of camera events and its drawer log shows the matching cash-sale openings. Fairfield payments are refused at ingestion.
+
+## First real reconciliation (14–15 Nov)
+Camera events: 33 (31 eligible, 2 labelled false detection → ignored). POS: 5 cash invoices, $323.00.
+| Result | Detail |
+|---|---|
+| Matched (3) | I75G39 $50.00 ↔ camera 12:58:21 (−4.1 s); I58B97 $50.00 ↔ 14:39:38 (−2.4 s); I80C32 $89.00 ↔ 11:12:26 (+1.3 s) |
+| Needs review (2 sales, 4 events) | I13Z80 (two camera events 10 s apart) and I40X50 (two events 12 s apart): too close to call, held for a person |
+| Camera events with no POS sale (24) | shown as exceptions: review alerts, not proof of wrongdoing (some are shift start/end drawer openings) |
+The 15 Nov text report and its Daybook notification were generated and delivered (2 devices, 0 failed). A repeat run changed nothing (no duplicate audit rows, report or notification).
+
+## Open item
+Continuous POS ingestion runs through the existing read-only StockWise agent. Its new `[CASH_SYNC]` schedule only exists after **Daybook → Agents → Setup → Update** is pressed once. Until then the five invoices above were loaded from StockWise tool results directly, and new sales will not appear until the agent is updated. Cadence is every 15 minutes, 9:00–18:45 Sydney (about 40 short runs/day; watch the cost tile).

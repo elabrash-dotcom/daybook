@@ -10,6 +10,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import * as cma from "./cma.ts";
 import { cashGate, handleCash, handleDeviceAdmin, handleImages } from "./cash.ts";
+import { handleCashReview, handleCashSync, runCashTick } from "./cash_phase2.ts";
 import { supabaseCashStore } from "./cash_store.ts";
 
 const sb = createClient(
@@ -21,7 +22,7 @@ const cashStore = supabaseCashStore(sb);
 
 const CORS = {
   "Access-Control-Allow-Origin": "*", // bearer-token auth, no cookies
-  "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
+  "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info, x-cron-key",
   "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS", // Jetson uploads go straight to Supabase signed URLs
 };
 
@@ -45,12 +46,22 @@ async function agentRow(ownerId: string, slug: unknown) {
   return data as cma.AgentRow;
 }
 
-// POST /ingest/card: the agent posts a card (optional poster PNG and approval) with its posting key.
-async function ingestCard(req: Request) {
+async function secret(k: string) {
+  const { data } = await sb.from("app_secrets").select("v").eq("k", k).maybeSingle();
+  return data?.v as string | undefined;
+}
+
+async function ingestAgent(req: Request) {
   const h = req.headers.get("authorization") ?? "";
   const token = h.startsWith("Bearer ") ? h.slice(7).trim() : "";
-  if (!token.startsWith("ing_") || token.length > 200) return json({ ok: false, error: "unauthorised" }, 401);
-  const { data: row } = await sb.from("agents").select(AGENT_COLS).eq("config->>ingest_hash", await sha256hex(token)).maybeSingle();
+  if (!token.startsWith("ing_") || token.length > 200) return null;
+  const { data } = await sb.from("agents").select(AGENT_COLS).eq("config->>ingest_hash", await sha256hex(token)).maybeSingle();
+  return data;
+}
+
+// POST /ingest/card: the agent posts a card (optional poster PNG and approval) with its posting key.
+async function ingestCard(req: Request) {
+  const row = await ingestAgent(req);
   if (!row) return json({ ok: false, error: "unauthorised" }, 401);
   const raw = await req.text();
   if (raw.length > 4_500_000) return json({ ok: false, error: "card too large (image max ~3 MB)" }, 413);
@@ -162,6 +173,18 @@ Deno.serve(async (req) => {
     }
     // The agent posting a card (its own posting key).
     if (path === "/ingest/card" && req.method === "POST") return await ingestCard(req);
+    // Machine-only cash sync from the existing read-only StockWise agent. Matching remains deterministic in this gateway.
+    if (path === "/ingest/cash-sync" && req.method === "POST") {
+      const row = await ingestAgent(req);
+      if (!row) return json({ ok:false,error:"unauthorised" },401);
+      return await handleCashSync(req, {id:row.id,owner_id:row.owner_id}, sb, json);
+    }
+    if (path === "/internal/cash/tick" && req.method === "POST") {
+      const key=req.headers.get("x-cron-key")||"";
+      if(!key||key!==await secret("cron_key")) return json({error:"forbidden"},403);
+      const b = await req.json().catch(() => ({}));
+      return json(await runCashTick(sb, new Date(), b?.force_report === true, typeof b?.date === "string" ? b.date : undefined));
+    }
     // StockWise sign-in comes back here (browser redirect, no Daybook token).
     if (path === "/oauth/callback" && req.method === "GET") {
       const code = url.searchParams.get("code") ?? "", state = url.searchParams.get("state") ?? "";
@@ -191,6 +214,10 @@ Deno.serve(async (req) => {
       return res ?? json({ error: "not found" }, 404);
     }
     if (path === "/cash/images" && req.method === "POST") return await handleImages(req, who.ownerId, cashStore, json);
+    if (path === "/cash/review" && req.method === "POST") {
+      if(who.isDevice) return json({error:"Daybook only"},403);
+      return await handleCashReview(req,who.ownerId,sb,json);
+    }
     if (path === "/admin/devices" || path === "/admin/devices/revoke") {
       if (who.isDevice) return json({ error: "Daybook only" }, 403);
       return (await handleDeviceAdmin(req, path, who.ownerId, cashStore, json, sha256hex)) ?? json({ error: "not found" }, 404);

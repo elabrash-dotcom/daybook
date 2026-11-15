@@ -894,10 +894,10 @@ let people = [], projects = [], tasks = [], shop = [], shopQ = '', shEditId = nu
 let sel = null;          // selected date
 let filter = {personId:null, projectId:null};   // independent facets, either or both may be set
 const CASH_PAGE = 20;
-const CASH_COLS = 'id,preserve,store_key,event_uid,detected_at,kind,confidence,track_id,bbox,detections,frame_width,frame_height,snapshot_raw_path,snapshot_annotated_path,clip_path,match_status,matched_payment_id,match_delta_seconds,label,label_note';
+const CASH_COLS = 'id,preserve,store_key,event_uid,detected_at,kind,confidence,track_id,bbox,detections,frame_width,frame_height,snapshot_raw_path,snapshot_annotated_path,clip_path,match_status,matched_payment_id,match_delta_seconds,match_locked,match_note,label,label_note,matched_payment:cash_pos_payments!cash_events_matched_payment_id_fkey(source_ref,cash_amount,total_amount,paid_at)';
 const CASH_LABELS = [{v:'confirmed_cash', e:'✅', t:'Confirmed Cash', s:'Cash'}, {v:'false_detection', e:'❌', t:'False Detection', s:'False'}, {v:'unsure', e:'❓', t:'Unsure', s:'Unsure'}, {v:'other', e:'➕', t:'Other', s:'Other'}];
 const CASH_STORES = {mcc:'MCC', mobiletek:'Mobiletek'};
-let cashHas = false, cashTodo = 0, cashLoaded = false, cashLoading = false, cashEvents = [], cashMore = false, cashLimit = CASH_PAGE, cashErr = '', cashSeq = 0, cashToReview = 0;
+let cashHas = false, cashTodo = 0, cashLoaded = false, cashLoading = false, cashEvents = [], cashPayments = [], cashReports = [], cashMore = false, cashLimit = CASH_PAGE, cashErr = '', cashSeq = 0, cashToReview = 0;
 let cashFilt = {range:'today', day:'', store:'', label:'all'};
 let cashOpenId = null, cashImgs = {}, cashSide = {}, cashBoxes = true, cashNew = false, cashChan = null, cashViewerClose = null;
 let cashRestoreScroll = false;
@@ -2485,13 +2485,19 @@ function cashBase(q, withLabel){
 async function cashLoad(){
   const my = ++cashSeq; cashLoading = true; cashErr = ''; if(mode === 'cash') render();
   try{
-    const [list, todo] = await Promise.all([
+    const bounds = agBounds(cashFilt.range, cashFilt.day);
+    let pq = sb.from('cash_pos_payments').select('id,store_key,source_ref,paid_at,cash_amount,total_amount,reconciliation_status,matched_event_id').order('paid_at',{ascending:false}).limit(500);
+    if(bounds.from) pq = pq.gte('paid_at',bounds.from); if(bounds.to) pq = pq.lt('paid_at',bounds.to); if(cashFilt.store) pq = pq.eq('store_key',cashFilt.store);
+    const [list, todo, pos, reports] = await Promise.all([
       cashBase(sb.from('cash_events').select(CASH_COLS), true).order('detected_at', {ascending: false}).limit(cashLimit + 1),
       cashBase(sb.from('cash_events').select('id', {count:'exact', head:true}), false).is('label', null),
+      pq,
+      sb.from('cash_daily_reports').select('id,store_key,store_name,business_date,pos_cash_count,pos_cash_amount,camera_event_count,matched_count,unmatched_camera_count,pos_without_detection_count,needs_review_count,body_text,created_at').order('business_date',{ascending:false}).limit(7),
     ]);
     if(my !== cashSeq) return;
     if(list.error) throw list.error;
     cashEvents = (list.data || []).slice(0, cashLimit); cashMore = (list.data || []).length > cashLimit;
+    cashPayments = pos.error ? [] : (pos.data || []); cashReports = reports.error ? [] : (reports.data || []);
     cashToReview = todo.count || 0; cashLoaded = true; cashNew = false;
   }catch(e){ if(my !== cashSeq) return; cashErr = 'Couldn’t load events: ' + (e && e.message ? e.message : e); }
   cashLoading = false; if(mode === 'cash') render();
@@ -2505,14 +2511,14 @@ async function cashStart(){
     ]);
     cashHas = !a.error && (a.count || 0) > 0; cashTodo = b.count || 0;           // table missing or empty: tile stays hidden
     if(!a.error && !cashChan){
-      cashChan = sb.channel('cash-events').on('postgres_changes', {event:'INSERT', schema:'public', table:'cash_events'}, () => {
-        cashHas = true; cashTodo++; cashNew = true; if(mode === 'cash' || mode === 'day') render();
+      cashChan = sb.channel('cash-events').on('postgres_changes', {event:'*', schema:'public', table:'cash_events'}, p => {
+        cashHas = true; if(p.eventType === 'INSERT'){ cashTodo++; cashNew = true; } if(mode === 'cash') cashLoad(); else if(mode === 'day') render();
       }).subscribe();
     }
   }catch(_){ cashHas = false; }
   if(mode === 'day') render();
 }
-function cashStop(){ if(cashViewerClose) cashViewerClose(); if(cashChan){ try{ sb.removeChannel(cashChan); }catch(_){} cashChan = null; } cashHas = false; cashLoaded = false; cashEvents = []; cashImgs = {}; cashOpenId = null; cashSeq++; }
+function cashStop(){ if(cashViewerClose) cashViewerClose(); if(cashChan){ try{ sb.removeChannel(cashChan); }catch(_){} cashChan = null; } cashHas = false; cashLoaded = false; cashEvents = []; cashPayments = []; cashReports = []; cashImgs = {}; cashOpenId = null; cashSeq++; }
 function cashOpen(){
   mode = 'cash'; tq = null; cashOpenId = null; render(); window.scrollTo({top:0});
   cashLimit = CASH_PAGE; cashLoad();
@@ -2617,10 +2623,26 @@ function cashViewOpen(id){
   setTimeout(() => root.querySelector('.cashviewclose').focus({preventScroll:true}), 0);
 }
 function cashMatchText(ev){
-  if(ev.match_status === 'matched') return `💵 Matched to a POS cash sale${ev.match_delta_seconds != null ? ' (' + Math.abs(Math.round(ev.match_delta_seconds)) + 's apart)' : ''}`;
-  if(ev.match_status === 'unmatched') return '⚠️ No matching POS cash sale found';
+  const p = Array.isArray(ev.matched_payment) ? ev.matched_payment[0] : ev.matched_payment;
+  if(ev.match_status === 'matched') return p ? `✅ Matched · ${p.source_ref} · $${Number(p.total_amount ?? p.cash_amount).toFixed(2)} · ${timeOf(Date.parse(p.paid_at))}` : `✅ Matched${ev.match_delta_seconds != null ? ' (' + Math.abs(Math.round(ev.match_delta_seconds)) + 's apart)' : ''}`;
+  if(ev.match_status === 'unmatched') return '⚠️ No POS Match';
+  if(ev.match_status === 'needs_review') return '🟡 Needs Review';
   if(ev.match_status === 'ignored') return 'Ignored for matching';
-  return 'POS match: not checked yet';
+  return '⏳ Pending POS data';
+}
+function cashStatusBadge(s){
+  const x = {matched:['✅','Matched'],unmatched:['⚠️','No POS Match'],needs_review:['🟡','Needs Review'],pending:['⏳','Pending'],ignored:['–','Ignored']}[s] || ['⏳','Pending'];
+  return `<span class="agsev">${x[0]} ${x[1]}</span>`;
+}
+function cashCandidates(ev){
+  const et=Date.parse(ev.detected_at);
+  return cashPayments.filter(p=>p.store_key===ev.store_key&&(!p.matched_event_id||p.matched_event_id===ev.id)&&Math.abs(et-Date.parse(p.paid_at))<=120000).sort((a,b)=>Math.abs(et-Date.parse(a.paid_at))-Math.abs(et-Date.parse(b.paid_at)));
+}
+function cashReviewControls(ev){
+  const c = cashCandidates(ev);
+  const matches = ev.match_status === 'matched' ? `<button type="button" class="agbtn" data-cashreview="clear">Clear POS match</button>` : c.map(p=>`<button type="button" class="agbtn ok" data-cashmatch="${esc(p.id)}">Match ${esc(p.source_ref)} · $${Number(p.total_amount ?? p.cash_amount).toFixed(2)} · ${esc(timeOf(Date.parse(p.paid_at)))}</button>`).join('');
+  const review = ev.match_status === 'needs_review' ? '' : `<button type="button" class="agbtn" data-cashreview="needs_review">Mark Needs Review</button>`;
+  return `<h5>Reconciliation review</h5>${c.length && ev.match_status !== 'matched' ? '<div class="agfine">POS candidates within ±120 seconds</div>' : ''}<div class="agacts">${matches}${review}</div>${ev.match_locked ? '<div class="agfine">Manual correction locked; automatic matching will not overwrite it.</div>' : ''}`;
 }
 function cashDetail(ev, idx){
   const ms = Date.parse(ev.detected_at);
@@ -2635,10 +2657,19 @@ function cashDetail(ev, idx){
   const next = cashEvents.slice(idx + 1).find(e => !e.label);
   return `<div class="agbody cashdet">${cashImgBlock(ev)}${dets}
     <div class="cashkv">${rows.map(r => `<span>${esc(r[0])}</span><b>${esc(r[1])}</b>`).join('')}</div>
+    ${cashReviewControls(ev)}
     <button type="button" class="agbtn" data-cashhold="${ev.preserve ? 0 : 1}" aria-pressed="${ev.preserve}">${ev.preserve ? "Release evidence hold" : "Preserve evidence"}</button>
     <h5>Your label</h5><div class="cashlbls">${lbls}</div>
     ${ev.label ? `<textarea id="cashNote" class="cashnote" rows="2" maxlength="500" placeholder="Note (optional)" aria-label="Note">${esc(ev.label_note || '')}</textarea><div class="agacts"><button type="button" class="agbtn ok" data-cashnote="1">Save note</button>${next ? '<button type="button" class="agbtn" style="background:var(--ink);color:var(--bg)" data-cashnext="' + esc(next.id) + '">Next to review ›</button>' : ''}</div>` : ''}
   </div>`;
+}
+function cashReportBlock(){
+  const r = cashReports[0]; if(!r) return '';
+  return `<details class="agcard" style="--sev:#4ad6ff"><summary class="aghead"><div class="agmeta"><span class="agsev">🧾 Daily text report</span><span class="agtime">${esc(dayLabel(r.business_date))}</span></div><div class="aghl">${esc(r.store_name)} · ${r.matched_count} matched</div><div class="agprev">${r.pos_cash_count} POS cash · $${Number(r.pos_cash_amount).toFixed(2)} · ${r.pos_without_detection_count+r.unmatched_camera_count+r.needs_review_count} exceptions</div></summary><div class="agbody" style="white-space:pre-wrap">${esc(r.body_text)}</div></details>`;
+}
+function cashPosWithoutDetection(){
+  const rows=cashPayments.filter(p=>p.reconciliation_status==='pos_without_detection'||p.reconciliation_status==='needs_review'); if(!rows.length)return '';
+  return `<div class="agday">POS exceptions</div><div class="aglist">${rows.map(p=>`<div class="agcard" style="--sev:${p.reconciliation_status==='needs_review'?'#E8A317':'#E0473A'}"><div class="aghead"><div class="agmeta">${cashStatusBadge(p.reconciliation_status==='needs_review'?'needs_review':'unmatched')}<span class="agshop mcc">${esc(cashStoreName(p.store_key))}</span><span class="agtime">${esc(timeOf(Date.parse(p.paid_at)))}</span></div><div class="aghl">${esc(p.source_ref)} · $${Number(p.total_amount ?? p.cash_amount).toFixed(2)}</div><div class="agprev">${p.reconciliation_status==='needs_review'?'Ambiguous camera match':'POS Without Detection'}</div></div></div>`).join('')}</div>`;
 }
 function cashFilters(){
   const C = (k, v, l) => `<button type="button" class="agchip" data-cashf="${k}.${v}" aria-pressed="${cashFilt[k] === v}">${l}</button>`;
@@ -2650,10 +2681,11 @@ function cashFilters(){
 function renderCash(){
   let h = `<button class="back" data-back>${I.left}Back</button><div class="head"><h3 style="font-size:28px">Cash audit</h3><span class="ts" style="margin-left:auto">${cashToReview} to review</span></div><div class="agpage">`;
   h += cashFilters();
+  h += cashReportBlock();
   if(cashNew) h += `<button type="button" class="agchip" data-cashrefresh="1" style="align-self:flex-start">🔔 New events — tap to refresh</button>`;
   if(cashErr) h += `<div class="empty"><b>Something went wrong</b>${esc(cashErr)}<br><button type="button" class="agchip" data-cashrefresh="1">Try again</button></div>`;
   else if(!cashLoaded && cashLoading) h += `<div class="empty"><b>Loading…</b></div>`;
-  else if(!cashEvents.length) h += `<div class="empty"><b>No events</b>Nothing matches these filters.</div>`;
+  else if(!cashEvents.length) h += `<div class="empty"><b>No camera events</b>Nothing matches these filters.</div>${cashPosWithoutDetection()}`;
   else {
     h += '<div class="aglist">'; let lastDay = '';
     cashEvents.forEach((ev, i) => {
@@ -2661,10 +2693,11 @@ function renderCash(){
       if(d && d !== lastDay){ lastDay = d; h += `<div class="agday">${esc(dayLabel(d))}</div>`; }
       const open = cashOpenId === ev.id, lab = CASH_LABELS.find(l => l.v === ev.label);
       const sev = lab ? (ev.label === 'confirmed_cash' ? '#2FA66A' : ev.label === 'false_detection' ? '#E0473A' : '#E8A317') : '#8a8f98';
-      h += `<div class="agcard cashcard" style="--sev:${sev}"><button type="button" class="aghead" data-cashopen="${esc(ev.id)}" aria-expanded="${open}"><div class="agmeta">${lab ? `<span class="agsev">${lab.e} ${lab.t}</span>` : '<span class="agdot" aria-label="To review"></span><span class="agsev">To review</span>'}<span class="agshop ${ev.store_key === 'mcc' ? 'mcc' : ev.store_key === 'mobiletek' ? 'mt' : ''}">${esc(cashStoreName(ev.store_key))}</span><span class="agtime">${esc(ms ? timeOf(ms) : '')}</span></div><div class="aghl">Cash handling${ev.confidence != null ? ' · ' + cashPct(ev.confidence) : ''}</div>${ev.track_id ? `<div class="agprev">Track ${esc(ev.track_id)}${ev.snapshot_raw_path || ev.snapshot_annotated_path ? '' : ' · no snapshot yet'}</div>` : ''}</button>${open ? cashDetail(ev, i) : ''}</div>`;
+      h += `<div class="agcard cashcard" style="--sev:${sev}"><button type="button" class="aghead" data-cashopen="${esc(ev.id)}" aria-expanded="${open}"><div class="agmeta">${cashStatusBadge(ev.match_status)}${lab ? `<span class="agsev">${lab.e} ${lab.t}</span>` : '<span class="agdot" aria-label="To review"></span>'}<span class="agshop ${ev.store_key === 'mcc' ? 'mcc' : ev.store_key === 'mobiletek' ? 'mt' : ''}">${esc(cashStoreName(ev.store_key))}</span><span class="agtime">${esc(ms ? timeOf(ms) : '')}</span></div><div class="aghl">Cash handling${ev.confidence != null ? ' · ' + cashPct(ev.confidence) : ''}</div><div class="agprev">${esc(cashMatchText(ev))}${ev.track_id ? ' · Track '+esc(ev.track_id) : ''}</div></button>${open ? cashDetail(ev, i) : ''}</div>`;
     });
     h += '</div>';
     if(cashMore) h += `<button type="button" class="agmore" data-cashmore="1">Show ${CASH_PAGE} more</button>`;
+    h += cashPosWithoutDetection();
   }
   return h + '</div>';
 }
@@ -2687,6 +2720,13 @@ async function cashSaveNote(id){
   const {error} = await sb.from('cash_events').update({label_note: note}).eq('id', id);
   if(error){ toast('Couldn’t save the note: ' + error.message); return; }
   ev.label_note = note; toast('Note saved');
+}
+async function cashReview(id, action, paymentId){
+  try{
+    await agCall('POST','/cash/review',{event_id:id,action,payment_id:paymentId||null});
+    toast(action==='match'?'POS match saved':action==='clear'?'POS match cleared':'Marked for review');
+    await cashLoad();
+  }catch(e){ toast('Couldn’t save reconciliation: '+e.message); }
 }
 function cashSelect(id){
   cashOpenId = cashOpenId === id ? null : id; cashRestoreScroll = true; render();
@@ -2711,6 +2751,8 @@ $('#app').addEventListener('click', e => {
     });
   }
   else if(d.cashlabel && cashOpenId) cashSetLabel(cashOpenId, d.cashlabel);
+  else if(d.cashmatch && cashOpenId) cashReview(cashOpenId,'match',d.cashmatch);
+  else if(d.cashreview && cashOpenId) cashReview(cashOpenId,d.cashreview);
   else if(d.cashnote && cashOpenId) cashSaveNote(cashOpenId);
   else if(d.cashnext){ cashOpenId = null; cashSelect(d.cashnext); const el = document.querySelector('[data-cashopen="' + d.cashnext + '"]'); if(el) el.scrollIntoView({block:'start'}); }
   else if(d.cashside && cashOpenId){ cashSide[cashOpenId] = d.cashside; cashRestoreScroll = true; render(); }

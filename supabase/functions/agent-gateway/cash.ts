@@ -135,7 +135,7 @@ async function postConfirm(req: Request, who: CameraCaller, store: CashStore, re
 // Returns null when the request may continue, otherwise the refusal.
 export function cashGate(who: { channel?: string; isDevice: boolean }, path: string): { status: number; error: string } | null {
   if (who.channel === "camera") return path.startsWith("/cash/") && path !== "/cash/images" ? null : { status: 403, error: "camera devices can only use /cash" };
-  if (path.startsWith("/cash/") && path !== "/cash/images") return { status: 403, error: "camera devices only" };
+  if (path.startsWith("/cash/") && path !== "/cash/images" && path !== "/cash/review") return { status: 403, error: "camera devices only" };
   if (path === "/cash/images" && who.isDevice) return { status: 403, error: "Daybook only" };
   return null;
 }

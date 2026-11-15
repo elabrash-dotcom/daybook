@@ -1,4 +1,5 @@
 const { chromium, devices } = require('playwright');
+const path = require('path');
 // Usage: node cash_ui.js <dir-containing node_modules/@supabase/supabase-js> [ok|missing]   (needs playwright; serve the repo on :8765)
 const S = process.argv[2]; const MODE = process.argv[3] || 'ok';
 const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
@@ -23,7 +24,7 @@ const patches = [], imageCalls = [], errors = [], baseline = [];
   await ctx.addInitScript(([k, v]) => { try{ localStorage.setItem(k, v); }catch(_){} }, ['sb-scjfvvwylrgpbrmdsjxb-auth-token', JSON.stringify(sess)]);
   await ctx.route('https://cdn.jsdelivr.net/**', r => r.fulfill({path: S + '/node_modules/@supabase/supabase-js/dist/umd/supabase.js', contentType:'application/javascript'}));
   await ctx.route('https://fonts.googleapis.com/**', r => r.fulfill({body:'', contentType:'text/css'}));
-  await ctx.route('https://img.test/**', r => r.fulfill({path: '/home/user/daybook/icon-512.png', contentType:'image/png'}));
+  await ctx.route('https://img.test/**', r => r.fulfill({path: path.resolve(__dirname, '../../icon-512.png'), contentType:'image/png'}));
   await ctx.route('https://scjfvvwylrgpbrmdsjxb.supabase.co/**', async r => {
     const u = new URL(r.request().url()), m = r.request().method(), sp = u.searchParams;
     const H = {'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'*','access-control-expose-headers':'content-range'};
@@ -88,13 +89,14 @@ const patches = [], imageCalls = [], errors = [], baseline = [];
   // event with snapshots
   const first = pg.locator('[data-cashopen]').first(); await first.click(); await pg.waitForSelector('.cashdet');
   await pg.waitForSelector('img.cashimg'); ok(imageCalls.length === 1 && imageCalls[0].length === 1, 'signed links requested for just the opened event');
-  ok(await pg.locator('.cashseg [data-cashside="raw"][aria-pressed="true"]').count() === 1, 'raw is the default view when available');
-  ok(await pg.locator('svg.cashov rect').count() >= 1, 'raw view draws bounding boxes');
-  ok((await pg.locator('img.cashimg').getAttribute('src')).includes('raw.png'), 'raw image shown');
-  await pg.click('[data-cashside="annotated"]'); await pg.waitForSelector('img.cashimg[src*="ann.png"]');
-  ok(await pg.locator('svg.cashov').count() === 0, 'annotated view has no overlay (boxes already drawn)');
+  ok(await pg.locator('.cashseg [data-cashside="annotated"][aria-pressed="true"]').count() === 1, 'annotated is the default view when available');
+  ok((await pg.locator('img.cashimg').getAttribute('src')).includes('ann.png'), 'annotated image shown');
+  await pg.click('img.cashimg'); await pg.waitForSelector('.cashview');
+  ok(/Annotated snapshot/.test(await pg.locator('.cashview').innerText()), 'tap opens the full-screen annotated viewer');
+  await pg.click('[data-cvz="in"]'); ok(await pg.locator('.cashview output').textContent() === '150%', 'viewer zoom control works');
+  await pg.click('.cashviewclose'); ok(await pg.locator('.cashview').count() === 0, 'viewer close works');
   await pg.click('[data-cashside="raw"]'); await pg.click('[data-cashboxes]'); ok(await pg.locator('svg.cashov').count() === 0, 'boxes toggle hides overlay');
-  const det = await pg.locator('.cashkv').innerText(); ok(/Confidence/.test(det) && /Track ID/.test(det) && /POS match\s*\n?.*not checked yet/s.test(det), 'details: confidence, track id, POS match placeholder');
+  const det = await pg.locator('.cashkv').innerText(); ok(/Confidence/.test(det) && /Track ID/.test(det) && /POS match\s*\n?.*Pending POS data/s.test(det), 'details: confidence, track id, pending POS status');
   await pg.screenshot({path: (process.env.SHOTS || '/tmp') + '/cash-detail.png', fullPage: false});
   // labels
   for (const [v, t] of [['confirmed_cash','Confirmed cash'], ['false_detection','False detection'], ['unsure','Unsure'], ['other','Other']]) {
@@ -116,6 +118,7 @@ const patches = [], imageCalls = [], errors = [], baseline = [];
   await pg.click(`[data-cashopen="${events[2].id}"]`); await pg.waitForSelector('.cashnone');
   ok(await pg.locator('text=No snapshot uploaded for this event yet').count() === 1, 'event without any snapshot shows a clear message');
   await pg.click(`[data-cashopen="${events[4].id}"]`); await pg.waitForSelector('img.cashimg');
+  await pg.click('[data-cashside="raw"]'); await pg.waitForSelector('img.cashimg[src*="raw.png"]');
   if(await pg.locator('[data-cashboxes][aria-pressed="false"]').count()) await pg.click('[data-cashboxes]');
   await pg.waitForSelector('svg.cashov');
   const r = await pg.locator('svg.cashov rect').first().getAttribute('x'); ok(Math.abs(+r - 104.2) < 0.5, 'pixel boxes are scaled by frame size (x=' + r + ')');
