@@ -77,7 +77,8 @@ export async function handleCashReview(req: Request, ownerId: string, sb: Supaba
 }
 
 export async function generateDailyReport(sb: SupabaseClient, ownerId: string, storeKey: string, day: string, force=false) {
-  if(!force){const {data}=await sb.from("cash_daily_reports").select("id").eq("owner_id",ownerId).eq("store_key",storeKey).eq("business_date",day).maybeSingle(); if(data)return {skipped:"already created",id:data.id};}
+  const {data:existing}=await sb.from("cash_daily_reports").select("id,card_id").eq("owner_id",ownerId).eq("store_key",storeKey).eq("business_date",day).maybeSingle();
+  if(!force&&existing)return {skipped:"already created",id:existing.id};
   const {data:cfg}=await sb.from("cash_reconciliation_settings").select("store_name").eq("owner_id",ownerId).eq("store_key",storeKey).eq("coverage_active",true).single();
   const from=sydMidnight(day),to=sydMidnight(addDays(day,1));
   const [{data:ev,error:ee},{data:pay,error:pe}]=await Promise.all([
@@ -96,18 +97,23 @@ export async function generateDailyReport(sb: SupabaseClient, ownerId: string, s
   const {data:agent}=await sb.from("agents").select("id").eq("owner_id",ownerId).eq("slug","stockwise").single();
   if(!agent) throw new Error("StockWise agent not found");
   const severity=exceptions.length?"watch":"info";
-  const {data:card,error:cardErr}=await sb.from("agent_cards").insert({owner_id:ownerId,agent_id:agent.id,kind:"report",severity,shop:cfg.store_name,headline:`Cash Audit: ${matched} matched · ${exceptions.length} exception${exceptions.length===1?"":"s"}`,glance:`${payments.length} POS cash · ${events.length} camera · ${matched} matched · ${exceptions.length} review alert${exceptions.length===1?"":"s"}`,summary:`Daily text-only Cash Audit report for ${displayDate(day)}.`,body_md:body,data:{cash_audit:true,business_date:day,store_key:storeKey}}).select("id").single(); if(cardErr)throw cardErr;
+  const cardFields={owner_id:ownerId,agent_id:agent.id,kind:"report",severity,shop:cfg.store_name,headline:`Cash Audit: ${matched} matched · ${exceptions.length} exception${exceptions.length===1?"":"s"}`,glance:`${payments.length} POS cash · ${events.length} camera · ${matched} matched · ${exceptions.length} review alert${exceptions.length===1?"":"s"}`,summary:`Daily text-only Cash Audit report for ${displayDate(day)}.`,body_md:body,data:{cash_audit:true,business_date:day,store_key:storeKey}};
+  const {data:card,error:cardErr}=existing?.card_id
+    ? await sb.from("agent_cards").update(cardFields).eq("id",existing.card_id).select("id").single()   // a forced re-run refreshes the same card, no duplicate notification
+    : await sb.from("agent_cards").insert(cardFields).select("id").single();
+  if(cardErr)throw cardErr;
   if(!card) throw new Error("report card was not created");
   const report={owner_id:ownerId,store_key:storeKey,store_name:cfg.store_name,business_date:day,pos_cash_count:payments.length,pos_cash_amount:amount,camera_event_count:events.length,matched_count:matched,unmatched_camera_count:unmatched,pos_without_detection_count:posMissing.length,needs_review_count:reviewE.length+reviewP.length,body_text:body,card_id:card.id,updated_at:new Date().toISOString()};
   const {data,error}=await sb.from("cash_daily_reports").upsert(report,{onConflict:"owner_id,store_key,business_date"}).select("id").single();if(error)throw error;
   return {id:data.id,card_id:card.id,matched,exceptions:exceptions.length};
 }
 
-export async function runCashTick(sb: SupabaseClient, now=new Date(), forceReport=false) {
+export async function runCashTick(sb: SupabaseClient, now=new Date(), forceReport=false, reportDay?: string) {
   const reconciliation=await reconcileAll(sb,now), p=parts(now), reports=[];
-  if(forceReport||(Number(p.hour)===19&&Number(p.minute)>=5)){
+  const day=reportDay&&DATE.test(reportDay)?reportDay:`${p.year}-${p.month}-${p.day}`;
+  if(forceReport||Number(p.hour)>19||(Number(p.hour)===19&&Number(p.minute)>=5)){
     const {data}=await sb.from("cash_reconciliation_settings").select("owner_id,store_key").eq("coverage_active",true);
-    for(const x of data||[]) reports.push(await generateDailyReport(sb,x.owner_id,x.store_key,`${p.year}-${p.month}-${p.day}`,forceReport));
+    for(const x of data||[]) reports.push(await generateDailyReport(sb,x.owner_id,x.store_key,day,forceReport));
   }
   return {ok:true,reconciliation,reports,server_time:now.toISOString(),sydney_time:`${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`};
 }

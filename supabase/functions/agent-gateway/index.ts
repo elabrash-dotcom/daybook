@@ -182,7 +182,8 @@ Deno.serve(async (req) => {
     if (path === "/internal/cash/tick" && req.method === "POST") {
       const key=req.headers.get("x-cron-key")||"";
       if(!key||key!==await secret("cron_key")) return json({error:"forbidden"},403);
-      return json(await runCashTick(sb));
+      const b = await req.json().catch(() => ({}));
+      return json(await runCashTick(sb, new Date(), b?.force_report === true, typeof b?.date === "string" ? b.date : undefined));
     }
     // StockWise sign-in comes back here (browser redirect, no Daybook token).
     if (path === "/oauth/callback" && req.method === "GET") {

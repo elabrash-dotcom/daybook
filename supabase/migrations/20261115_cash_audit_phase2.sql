@@ -69,12 +69,14 @@ create index if not exists cash_daily_reports_owner_date on public.cash_daily_re
 create or replace function public.cash_match_audit_trigger()
 returns trigger language plpgsql security definer set search_path = '' as $$
 begin
+  if coalesce(current_setting('cash.skip_audit', true), '') = '1' then return new; end if; -- bulk reconciliation writes its own net-change rows
   if new.match_status is distinct from old.match_status
      or new.matched_payment_id is distinct from old.matched_payment_id
      or new.match_locked is distinct from old.match_locked then
     insert into public.cash_match_audit(owner_id,event_id,actor,old_status,new_status,old_payment_id,new_payment_id,note,changed_by)
     values(new.owner_id,new.id,case when new.match_method='manual' or new.match_locked then 'manual' else 'automatic' end,
-      old.match_status,new.match_status,old.matched_payment_id,new.matched_payment_id,new.match_note,(select auth.uid()));
+      old.match_status,new.match_status,old.matched_payment_id,new.matched_payment_id,new.match_note,
+      coalesce((select auth.uid()), case when new.match_method='manual' then new.match_reviewed_by end));
   end if;
   return new;
 end $$;
@@ -91,7 +93,12 @@ create or replace function public.cash_apply_reconciliation(
 ) returns jsonb language plpgsql security definer set search_path = '' as $$
 declare r jsonb; pending_mins integer; matched_n integer := 0;
 begin
-  if coalesce(current_setting('request.jwt.claim.role', true),'') <> 'service_role' then raise exception 'service role required'; end if;
+  perform set_config('cash.skip_audit','1',true);
+  drop table if exists pg_temp.cash_snap_tmp;
+  create temp table cash_snap_tmp on commit drop as
+    select id, match_status as old_status, matched_payment_id as old_payment from public.cash_events
+    where owner_id=p_owner and store_key=p_store and detected_at>=p_from and detected_at<p_to;
+  if coalesce(nullif(current_setting('request.jwt.claim.role', true),''), nullif(current_setting('request.jwt.claims', true),'')::jsonb->>'role', 'service_role') <> 'service_role' then raise exception 'service role required'; end if;
   if jsonb_typeof(p_matches) <> 'array' then raise exception 'matches must be an array'; end if;
   select pending_minutes into pending_mins from public.cash_reconciliation_settings where owner_id=p_owner and store_key=p_store;
   pending_mins := coalesce(pending_mins,15);
@@ -126,6 +133,11 @@ begin
   end loop;
   update public.cash_reconciliation_settings set clock_offset_seconds=p_clock_offset,observed_offset_at=p_now,updated_at=p_now
     where owner_id=p_owner and store_key=p_store;
+  insert into public.cash_match_audit(owner_id,event_id,actor,old_status,new_status,old_payment_id,new_payment_id,note)
+    select e.owner_id,e.id,'automatic',s.old_status,e.match_status,s.old_payment,e.matched_payment_id,null
+    from public.cash_events e join pg_temp.cash_snap_tmp s on s.id=e.id
+    where (e.match_status,e.matched_payment_id) is distinct from (s.old_status,s.old_payment);
+  perform set_config('cash.skip_audit','',true);
   return jsonb_build_object('ok',true,'matched',matched_n);
 end $$;
 revoke all on function public.cash_apply_reconciliation(uuid,text,timestamptz,timestamptz,jsonb,uuid[],uuid[],numeric,timestamptz) from public,anon,authenticated;
@@ -135,7 +147,7 @@ create or replace function public.cash_manual_reconciliation(
 ) returns jsonb language plpgsql security definer set search_path = '' as $$
 declare ev public.cash_events%rowtype; pay public.cash_pos_payments%rowtype; other public.cash_events%rowtype;
 begin
-  if coalesce(current_setting('request.jwt.claim.role', true),'') <> 'service_role' then raise exception 'service role required'; end if;
+  if coalesce(nullif(current_setting('request.jwt.claim.role', true),''), nullif(current_setting('request.jwt.claims', true),'')::jsonb->>'role', 'service_role') <> 'service_role' then raise exception 'service role required'; end if;
   if p_action not in ('match','clear','needs_review') then raise exception 'bad action'; end if;
   select * into ev from public.cash_events where id=p_event and owner_id=p_owner for update;
   if not found then raise exception 'event not found'; end if;
@@ -153,14 +165,14 @@ begin
     end if;
     update public.cash_events set match_status='matched',matched_payment_id=pay.id,
       match_delta_seconds=extract(epoch from (ev.detected_at-pay.paid_at)),matched_at=now(),match_method='manual',match_locked=true,
-      match_note=nullif(left(coalesce(p_note,''),500),'') ,match_reviewed_at=now(),match_reviewed_by=(select auth.uid()) where id=ev.id;
+      match_note=nullif(left(coalesce(p_note,''),500),''),match_reviewed_at=now(),match_reviewed_by=p_owner where id=ev.id;
     update public.cash_pos_payments set matched_event_id=ev.id,reconciliation_status='matched' where id=pay.id;
   elsif p_action='clear' then
     update public.cash_events set match_status='unmatched',matched_payment_id=null,match_delta_seconds=null,matched_at=null,match_method='manual',match_locked=true,
-      match_note=nullif(left(coalesce(p_note,''),500),''),match_reviewed_at=now(),match_reviewed_by=(select auth.uid()) where id=ev.id;
+      match_note=nullif(left(coalesce(p_note,''),500),''),match_reviewed_at=now(),match_reviewed_by=p_owner where id=ev.id;
   else
     update public.cash_events set match_status='needs_review',matched_payment_id=null,match_delta_seconds=null,matched_at=null,match_method='manual',match_locked=true,
-      match_note=nullif(left(coalesce(p_note,''),500),''),match_reviewed_at=now(),match_reviewed_by=(select auth.uid()) where id=ev.id;
+      match_note=nullif(left(coalesce(p_note,''),500),''),match_reviewed_at=now(),match_reviewed_by=p_owner where id=ev.id;
   end if;
   return jsonb_build_object('ok',true,'event_id',ev.id,'action',p_action);
 end $$;
