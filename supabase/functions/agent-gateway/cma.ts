@@ -167,6 +167,8 @@ export async function setup(sb: SupabaseClient, row: AgentRow) {
     else {
       const d = await c.beta.deployments.create(body);
       deps[r.label] = d.id;
+      cfg.deployments = { ...deps };
+      await saveCfg(sb, row, cfg); // save at once: a later failure must never orphan this schedule (a retry would create a duplicate)
       if (!cfg.schedules_on) await c.beta.deployments.pause(d.id);
     }
   }
