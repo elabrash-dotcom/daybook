@@ -5,7 +5,7 @@ export const SCHEDULES: { timezone: string; budget_usd_cents: string; runs: { la
   "timezone": "Australia/Sydney",
   "budget_usd_cents": "100",
   "runs": [
-    { "label": "cash_sync", "name": "Cash Audit POS sync", "cron": "*/10 8-19 * * *",
+    { "label": "cash_sync", "name": "Cash Audit POS sync", "cron": "*/15 9-18 * * *",
       "prompt": "[CASH_SYNC] Refresh MCC Eastern Creek completed cash invoices for today and yesterday, post the confirmed machine records to the Cash Audit sync endpoint, and do not create a card or image." },
     { "label": "morning", "name": "Morning brief", "cron": "30 8 * * *",
       "prompt": "Morning brief. Yesterday's result per shop vs its daily target, month-to-date vs target-to-date (amount and %), and what each shop needs per trading day to finish the month. Note open repair tickets. One combined brief card with a pop-scoreboard poster; add an alert card only if a shop is clearly behind." },
