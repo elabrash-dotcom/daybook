@@ -714,6 +714,10 @@ body.askopen{overflow:hidden}
 .agah{font-size:14px;color:var(--ink-2);font-weight:700}
 .agat{white-space:pre-wrap;word-break:break-word;background:var(--soft);border-radius:12px;padding:10px 12px;font-size:15px;line-height:1.4}
 .agfine{font-size:12.5px;color:var(--ink-3);font-weight:700}
+.cashsync{display:flex;flex-direction:column;gap:8px;background:var(--surface);border-radius:22px;box-shadow:var(--shadow);padding:14px 16px}
+.cashsyncrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.cashsyncrow .agbtn{flex:none;min-width:0;padding:0 18px}
+.cashsyncline{font-size:13.5px;color:var(--ink)}
 .agfilt.cashfilt{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding:2px}
 .agfilt.cashfilt::-webkit-scrollbar{display:none}
 .cashbox{position:relative;border-radius:14px;overflow:hidden;background:var(--soft);line-height:0}
@@ -905,6 +909,7 @@ let cashHas = false, cashTodo = 0, cashLoaded = false, cashLoading = false, cash
 let cashFilt = {range:'today', day:'', store:'', label:'all'};
 let cashOpenId = null, cashImgs = {}, cashSide = {}, cashBoxes = true, cashNew = false, cashChan = null, cashViewerClose = null;
 let cashRestoreScroll = false;
+let cashSync = null, cashSyncErr = '', cashSyncT = null, cashSyncNote = '', cashSyncBusy = false;
 let mode = 'day';        // day | history
 let histLimit = 60, showSomeday = false, tq = null, tsFocus = false;
 // Agents section state (see the Agents block further down)
@@ -2522,10 +2527,47 @@ async function cashStart(){
   }catch(_){ cashHas = false; }
   if(mode === 'day') render();
 }
-function cashStop(){ if(cashViewerClose) cashViewerClose(); if(cashChan){ try{ sb.removeChannel(cashChan); }catch(_){} cashChan = null; } cashHas = false; cashLoaded = false; cashEvents = []; cashPayments = []; cashReports = []; cashImgs = {}; cashOpenId = null; cashSeq++; }
+function cashStop(){ clearTimeout(cashSyncT); cashSync = null; cashSyncNote = ''; cashSyncBusy = false; if(cashViewerClose) cashViewerClose(); if(cashChan){ try{ sb.removeChannel(cashChan); }catch(_){} cashChan = null; } cashHas = false; cashLoaded = false; cashEvents = []; cashPayments = []; cashReports = []; cashImgs = {}; cashOpenId = null; cashSeq++; }
 function cashOpen(){
   mode = 'cash'; tq = null; cashOpenId = null; render(); window.scrollTo({top:0});
-  cashLimit = CASH_PAGE; cashLoad();
+  cashLimit = CASH_PAGE; cashLoad(); cashSyncLoad();
+}
+// ---- Sync POS Now: starts the existing StockWise agent (real fetch), shows progress, then refreshes the screen ----
+const cashN = n => n + ' new invoice' + (n === 1 ? '' : 's');
+async function cashSyncLoad(){
+  const was = !!(cashSync && cashSync.active);
+  try{ const r = await agCall('GET', '/cash/sync/status'); if(r && r.ok){ cashSync = r; cashSyncErr = ''; } }
+  catch(e){ cashSyncErr = e && e.message ? e.message : 'error'; }
+  clearTimeout(cashSyncT); cashSyncT = null;
+  if(mode === 'cash' && cashSync && cashSync.active) cashSyncT = setTimeout(cashSyncLoad, 3000);   // poll while a sync runs
+  if(was && cashSync && !cashSync.active) cashSyncDone();
+  if(mode === 'cash') render();
+}
+function cashSyncDone(){
+  const j = cashSync && cashSync.last_job; if(!j) return;
+  toast(j.status === 'done' ? '✅ POS sync finished · ' + cashN(j.imported) : '⚠️ POS sync failed' + (j.error ? ': ' + j.error : ''));
+  cashLimit = CASH_PAGE; cashLoad(); cashStart();                                                    // refresh the reconciliation screen
+}
+async function cashSyncStart(){
+  if(cashSyncBusy || (cashSync && cashSync.active)) return;
+  cashSyncBusy = true; cashSyncNote = ''; render();
+  try{ await agCall('POST', '/cash/sync'); }
+  catch(e){ cashSyncNote = e && e.message ? e.message : 'Couldn’t start the sync'; }                 // includes "already running"
+  cashSyncBusy = false; await cashSyncLoad();
+}
+function cashSyncBlock(){
+  const s = cashSync;
+  if(!s) return cashSyncErr ? `<div class="agfine">Sync status unavailable: ${esc(cashSyncErr)}</div>` : '';
+  const act = s.active, lj = s.last_job, ok = s.last_ok, running = !!act || cashSyncBusy;
+  const when = iso => { const ms = Date.parse(iso); return ms ? dayLabel(sydYmd(ms)) + ' · ' + timeOf(ms) : '—'; };
+  let line = '';
+  if(running) line = `⏳ Fetching from StockWise… started ${esc(act ? timeOf(Date.parse(act.started_at)) : 'now')}. The screen refreshes when it finishes.`;
+  else if(cashSyncNote) line = `⚠️ ${esc(cashSyncNote)}`;
+  else if(lj && lj.status === 'failed') line = `⚠️ Last manual sync failed: ${esc(lj.error || 'unknown error')}`;
+  else if(lj && lj.status === 'done') line = `✅ Last manual sync (${esc(when(lj.started_at))}): ${esc(cashN(lj.imported))}`;
+  const last = ok ? `Last successful sync: ${esc(when(ok.at))} · ${esc(cashN(ok.new_count))}` : 'No sync recorded yet';
+  const hint = !s.ready ? '<div class="agfine">Not set up yet: open Agents → Setup and tap Update (or Create) once.</div>' : '';
+  return `<div class="cashsync"><div class="cashsyncrow"><button type="button" class="agbtn ok" data-cashsync="1"${running || !s.ready ? ' disabled' : ''}>${running ? 'Syncing…' : 'Sync POS Now'}</button><div class="agfine">${last}</div></div>${line ? `<div class="agfine cashsyncline">${line}</div>` : ''}${hint}<div class="agfine">Scheduled syncs: 1:00 PM and 6:45 PM.</div></div>`;
 }
 function renderCashTile(){
   if(!cashHas) return '';
@@ -2684,6 +2726,7 @@ function cashFilters(){
 }
 function renderCash(){
   let h = `<button class="back" data-back>${I.left}Back</button><div class="head"><h3 style="font-size:28px">Cash audit</h3><span class="ts" style="margin-left:auto">${cashToReview} to review</span></div><div class="agpage">`;
+  h += cashSyncBlock();
   h += cashFilters();
   h += cashReportBlock();
   if(cashNew) h += `<button type="button" class="agchip" data-cashrefresh="1" style="align-self:flex-start">🔔 New events — tap to refresh</button>`;
@@ -2757,6 +2800,7 @@ $('#app').addEventListener('click', e => {
   else if(d.cashlabel && cashOpenId) cashSetLabel(cashOpenId, d.cashlabel);
   else if(d.cashmatch && cashOpenId) cashReview(cashOpenId,'match',d.cashmatch);
   else if(d.cashreview && cashOpenId) cashReview(cashOpenId,d.cashreview);
+  else if(d.cashsync) cashSyncStart();
   else if(d.cashnote && cashOpenId) cashSaveNote(cashOpenId);
   else if(d.cashnext){ cashOpenId = null; cashSelect(d.cashnext); const el = document.querySelector('[data-cashopen="' + d.cashnext + '"]'); if(el) el.scrollIntoView({block:'start'}); }
   else if(d.cashside && cashOpenId){ cashSide[cashOpenId] = d.cashside; cashRestoreScroll = true; render(); }

@@ -11,6 +11,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import * as cma from "./cma.ts";
 import { cashGate, handleCash, handleDeviceAdmin, handleImages } from "./cash.ts";
 import { handleCashReview, handleCashSync, runCashTick } from "./cash_phase2.ts";
+import { startManualSync, syncStatus } from "./cash_sync.ts";
 import { supabaseCashStore } from "./cash_store.ts";
 
 const sb = createClient(
@@ -185,6 +186,19 @@ Deno.serve(async (req) => {
       const b = await req.json().catch(() => ({}));
       return json(await runCashTick(sb, new Date(), b?.force_report === true, typeof b?.date === "string" ? b.date : undefined));
     }
+    // Operations route (cron key only, never a browser): start the manual sync, read its status, or read the LIVE schedule list.
+    if (path === "/internal/cash/ops" && req.method === "POST") {
+      const key = req.headers.get("x-cron-key") || "";
+      if (!key || key !== await secret("cron_key")) return json({ error: "forbidden" }, 403);
+      const b = await req.json().catch(() => ({}));
+      const { data: ag } = await sb.from("agents").select(AGENT_COLS).eq("slug", "stockwise").limit(1).maybeSingle();
+      if (!ag) return json({ error: "agent not found" }, 404);
+      const row = ag as cma.AgentRow;
+      if (b?.action === "sync") { const r = await startManualSync(sb, row, "ops", cma.runNow); return json(r.body, r.status); }
+      if (b?.action === "status") return json(await syncStatus(sb, row, (sid) => cma.syncSession(sb, sid)));
+      if (b?.action === "schedules") return json({ ok: true, ...(await cma.scheduleReport(row)), timetable: await cma.scheduleList(row) });
+      return json({ error: "unknown action" }, 400);
+    }
     // StockWise sign-in comes back here (browser redirect, no Daybook token).
     if (path === "/oauth/callback" && req.method === "GET") {
       const code = url.searchParams.get("code") ?? "", state = url.searchParams.get("state") ?? "";
@@ -214,6 +228,11 @@ Deno.serve(async (req) => {
       return res ?? json({ error: "not found" }, 404);
     }
     if (path === "/cash/images" && req.method === "POST") return await handleImages(req, who.ownerId, cashStore, json);
+    if (path === "/cash/sync" && req.method === "POST") {
+      const r = await startManualSync(sb, await agentRow(who.ownerId, "stockwise"), "button", cma.runNow);
+      return json(r.body, r.status);
+    }
+    if (path === "/cash/sync/status" && req.method === "GET") return json(await syncStatus(sb, await agentRow(who.ownerId, "stockwise"), (sid) => cma.syncSession(sb, sid)));
     if (path === "/cash/review" && req.method === "POST") {
       if(who.isDevice) return json({error:"Daybook only"},403);
       return await handleCashReview(req,who.ownerId,sb,json);
