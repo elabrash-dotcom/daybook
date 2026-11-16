@@ -13,6 +13,7 @@ import { cashGate, handleCash, handleDeviceAdmin, handleImages } from "./cash.ts
 import { handleCashReview, handleCashSync, runCashTick } from "./cash_phase2.ts";
 import { startManualSync, syncStatus } from "./cash_sync.ts";
 import { supabaseCashStore } from "./cash_store.ts";
+import { handleTrainingExport, handleTrainingReview, supabaseTrainingStore } from "./cash_training.ts";
 
 const sb = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -20,6 +21,7 @@ const sb = createClient(
   { auth: { persistSession: false } },
 );
 const cashStore = supabaseCashStore(sb);
+const trainingStore = supabaseTrainingStore(sb);
 
 const CORS = {
   "Access-Control-Allow-Origin": "*", // bearer-token auth, no cookies
@@ -237,6 +239,8 @@ Deno.serve(async (req) => {
       if(who.isDevice) return json({error:"Daybook only"},403);
       return await handleCashReview(req,who.ownerId,sb,json);
     }
+    if (path === "/cash/training/export" && req.method === "GET") return await handleTrainingExport(req, who.ownerId, trainingStore, json, CORS);
+    if (path === "/cash/training/review" && req.method === "POST") return await handleTrainingReview(req, who.ownerId, trainingStore, json);
     if (path === "/admin/devices" || path === "/admin/devices/revoke") {
       if (who.isDevice) return json({ error: "Daybook only" }, 403);
       return (await handleDeviceAdmin(req, path, who.ownerId, cashStore, json, sha256hex)) ?? json({ error: "not found" }, 404);
