@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { estimateClockOffset, matchEvents } from "./cash_match.ts";
+import { SYNC_LABEL, STALE_JOB_MINUTES, eveningSyncStartMs, reportSyncState, syncReasonText } from "./cash_sync_core.ts";
 
 export type Reply = (body: unknown, status?: number) => Response;
 export type CashAgent = { id: string; owner_id: string };
@@ -63,9 +64,19 @@ export async function handleCashSync(req: Request, agent: CashAgent, sb: Supabas
   const rows=Array.isArray(body.payments)?body.payments:[]; if(rows.length>MAX_SYNC_ROWS) return reply({error:`max ${MAX_SYNC_ROWS} payments`},413);
   const clean=rows.map(cleanPayment); if(clean.some((x)=>!x)) return reply({error:"every payment must be a completed MCC Eastern Creek cash invoice with valid IDs, amount and timestamps"},400);
   await sb.from("cash_reconciliation_settings").upsert({owner_id:agent.owner_id,store_key:"mcc",pos_store_id:MCC_POS_STORE_ID,store_name:"MCC Eastern Creek",coverage_active:true},{onConflict:"owner_id,store_key"});
-  if(clean.length){ const {error}=await sb.from("cash_pos_payments").upsert(clean.map((x)=>({...x,owner_id:agent.owner_id})),{onConflict:"owner_id,source,source_uuid,payment_ref"}); if(error) throw error; }
+  const good=clean as NonNullable<(typeof clean)[number]>[];
+  const known=new Set<string>();
+  if(good.length){
+    const {data:have,error:he}=await sb.from("cash_pos_payments").select("source_uuid,payment_ref").eq("owner_id",agent.owner_id).eq("source","invoice").in("source_uuid",good.map((x)=>x.source_uuid));
+    if(he) throw he; for(const r of have||[]) known.add(`${r.source_uuid}|${r.payment_ref}`);
+    const {error}=await sb.from("cash_pos_payments").upsert(good.map((x)=>({...x,owner_id:agent.owner_id})),{onConflict:"owner_id,source,source_uuid,payment_ref"}); if(error) throw error;
+  }
+  const newCount=good.filter((x)=>!known.has(`${x.source_uuid}|${x.payment_ref}`)).length;
+  // Record the sync (also when it found nothing): this is the "last successful sync" and what the 7:05 PM report checks.
+  const {data:job}=await sb.from("cash_sync_jobs").select("id").eq("owner_id",agent.owner_id).in("status",["starting","running"]).gt("created_at",new Date(Date.now()-STALE_JOB_MINUTES*60e3).toISOString()).limit(1).maybeSingle();
+  const {error:le}=await sb.from("cash_sync_log").insert({owner_id:agent.owner_id,store_key:"mcc",accepted:good.length,new_count:newCount,job_id:job?.id??null}); if(le) throw le;
   const result=await reconcileStore(sb,agent.owner_id,"mcc");
-  return reply({ok:true,accepted:clean.length,reconciliation:result});
+  return reply({ok:true,accepted:good.length,new:newCount,reconciliation:result});
 }
 
 export async function handleCashReview(req: Request, ownerId: string, sb: SupabaseClient, reply: Reply) {
@@ -76,9 +87,19 @@ export async function handleCashReview(req: Request, ownerId: string, sb: Supaba
   return reply(data);
 }
 
-export async function generateDailyReport(sb: SupabaseClient, ownerId: string, storeKey: string, day: string, force=false) {
-  const {data:existing}=await sb.from("cash_daily_reports").select("id,card_id").eq("owner_id",ownerId).eq("store_key",storeKey).eq("business_date",day).maybeSingle();
-  if(!force&&existing)return {skipped:"already created",id:existing.id};
+const dayTime=(ms:number)=>new Intl.DateTimeFormat("en-AU",{timeZone:"Australia/Sydney",weekday:"short",hour:"numeric",minute:"2-digit"}).format(new Date(ms));
+
+export async function generateDailyReport(sb: SupabaseClient, ownerId: string, storeKey: string, day: string, force=false, now=new Date()) {
+  const {data:existing}=await sb.from("cash_daily_reports").select("id,card_id,pos_sync_state").eq("owner_id",ownerId).eq("store_key",storeKey).eq("business_date",day).maybeSingle();
+  if(!force&&existing&&existing.pos_sync_state!=="incomplete")return {skipped:"already created",id:existing.id};
+  // Is the POS data for this day complete? Latest sync that arrived by the end of that day, and the 6:45 PM run.
+  const dayEnd=sydMidnight(addDays(day,1));
+  const {data:lastLog}=await sb.from("cash_sync_log").select("received_at").eq("owner_id",ownerId).lt("received_at",dayEnd).order("received_at",{ascending:false}).limit(1);
+  const lastOkMs=lastLog&&lastLog[0]?Date.parse(lastLog[0].received_at):null;
+  const {data:runs}=await sb.from("agent_runs").select("status,error").eq("owner_id",ownerId).eq("schedule_label",SYNC_LABEL.evening).gte("started_at",new Date(eveningSyncStartMs(day)-10*60e3).toISOString()).lt("started_at",dayEnd).order("started_at",{ascending:false}).limit(1);
+  const sync=reportSyncState({nowMs:now.getTime(),day,lastOkMs,eveningRun:runs&&runs[0]?{status:runs[0].status,error:runs[0].error}:null});
+  if(sync.state==="wait"&&!force) return {deferred:"waiting for the 6:45 PM POS sync to finish"};
+  if(existing&&existing.pos_sync_state==="incomplete"&&sync.state!=="complete"&&!force) return {skipped:"already created (POS data still incomplete)",id:existing.id};
   const {data:cfg}=await sb.from("cash_reconciliation_settings").select("store_name").eq("owner_id",ownerId).eq("store_key",storeKey).eq("coverage_active",true).single();
   const from=sydMidnight(day),to=sydMidnight(addDays(day,1));
   const [{data:ev,error:ee},{data:pay,error:pe}]=await Promise.all([
@@ -93,17 +114,21 @@ export async function generateDailyReport(sb: SupabaseClient, ownerId: string, s
   for(const x of posMissing) exceptions.push(`${x.source_ref} · ${money(x.total_amount??x.cash_amount)} · ${time(x.paid_at)} — POS without camera detection`);
   for(const x of reviewP) exceptions.push(`${x.source_ref} · ${money(x.total_amount??x.cash_amount)} · ${time(x.paid_at)} — needs manual review`);
   for(const x of reviewE) exceptions.push(`Camera ${time(x.detected_at)} — needs manual review`);
-  const body=[`Cash Audit — ${cfg.store_name} — ${displayDate(day)}`,`POS cash transactions: ${payments.length}`,`POS cash amount: ${money(amount)}`,`Camera cash events: ${events.length}`,`Matched transactions: ${matched}`,`Unmatched camera events: ${unmatched}`,`POS cash transactions without camera detection: ${posMissing.length}`,`Items needing manual review: ${reviewE.length+reviewP.length}`,"", "Exceptions:",...(exceptions.length?exceptions.map((x)=>`- ${x}`):["- None"]),"","Mismatches are review alerts, not proof of wrongdoing. Camera confidence is detection confidence only."].join("\n");
+  const incomplete=sync.state!=="complete";
+  const syncLine=incomplete
+    ? `⚠️ POS data may be incomplete: ${syncReasonText(sync.reason,runs&&runs[0]?runs[0].error:null)}. Latest successful POS sync: ${lastOkMs?dayTime(lastOkMs):"none"}. Sales after that may be missing, so unmatched camera events below may not be real exceptions.`
+    : `POS sync: complete (latest sync ${dayTime(lastOkMs as number)})`;
+  const body=[`Cash Audit — ${cfg.store_name} — ${displayDate(day)}`,syncLine,`POS cash transactions: ${payments.length}`,`POS cash amount: ${money(amount)}`,`Camera cash events: ${events.length}`,`Matched transactions: ${matched}`,`Unmatched camera events: ${unmatched}`,`POS cash transactions without camera detection: ${posMissing.length}`,`Items needing manual review: ${reviewE.length+reviewP.length}`,"", "Exceptions:",...(exceptions.length?exceptions.map((x)=>`- ${x}`):["- None"]),"","Mismatches are review alerts, not proof of wrongdoing. Camera confidence is detection confidence only."].join("\n");
   const {data:agent}=await sb.from("agents").select("id").eq("owner_id",ownerId).eq("slug","stockwise").single();
   if(!agent) throw new Error("StockWise agent not found");
-  const severity=exceptions.length?"watch":"info";
-  const cardFields={owner_id:ownerId,agent_id:agent.id,kind:"report",severity,shop:cfg.store_name,headline:`Cash Audit: ${matched} matched · ${exceptions.length} exception${exceptions.length===1?"":"s"}`,glance:`${payments.length} POS cash · ${events.length} camera · ${matched} matched · ${exceptions.length} review alert${exceptions.length===1?"":"s"}`,summary:`Daily text-only Cash Audit report for ${displayDate(day)}.`,body_md:body,data:{cash_audit:true,business_date:day,store_key:storeKey}};
+  const severity=exceptions.length||incomplete?"watch":"info";
+  const cardFields={owner_id:ownerId,agent_id:agent.id,kind:"report",severity,shop:cfg.store_name,headline:`Cash Audit${incomplete?" ⚠️ POS incomplete":""}: ${matched} matched · ${exceptions.length} exception${exceptions.length===1?"":"s"}`,glance:`${payments.length} POS cash · ${events.length} camera · ${matched} matched · ${exceptions.length} review alert${exceptions.length===1?"":"s"}`,summary:`Daily text-only Cash Audit report for ${displayDate(day)}.`,body_md:body,data:{cash_audit:true,business_date:day,store_key:storeKey}};
   const {data:card,error:cardErr}=existing?.card_id
     ? await sb.from("agent_cards").update(cardFields).eq("id",existing.card_id).select("id").single()   // a forced re-run refreshes the same card, no duplicate notification
     : await sb.from("agent_cards").insert(cardFields).select("id").single();
   if(cardErr)throw cardErr;
   if(!card) throw new Error("report card was not created");
-  const report={owner_id:ownerId,store_key:storeKey,store_name:cfg.store_name,business_date:day,pos_cash_count:payments.length,pos_cash_amount:amount,camera_event_count:events.length,matched_count:matched,unmatched_camera_count:unmatched,pos_without_detection_count:posMissing.length,needs_review_count:reviewE.length+reviewP.length,body_text:body,card_id:card.id,updated_at:new Date().toISOString()};
+  const report={owner_id:ownerId,store_key:storeKey,store_name:cfg.store_name,business_date:day,pos_cash_count:payments.length,pos_cash_amount:amount,camera_event_count:events.length,matched_count:matched,unmatched_camera_count:unmatched,pos_without_detection_count:posMissing.length,needs_review_count:reviewE.length+reviewP.length,body_text:body,card_id:card.id,pos_sync_state:incomplete?"incomplete":"complete",pos_synced_at:lastOkMs?new Date(lastOkMs).toISOString():null,updated_at:new Date().toISOString()};
   const {data,error}=await sb.from("cash_daily_reports").upsert(report,{onConflict:"owner_id,store_key,business_date"}).select("id").single();if(error)throw error;
   return {id:data.id,card_id:card.id,matched,exceptions:exceptions.length};
 }
@@ -113,7 +138,7 @@ export async function runCashTick(sb: SupabaseClient, now=new Date(), forceRepor
   const day=reportDay&&DATE.test(reportDay)?reportDay:`${p.year}-${p.month}-${p.day}`;
   if(forceReport||Number(p.hour)>19||(Number(p.hour)===19&&Number(p.minute)>=5)){
     const {data}=await sb.from("cash_reconciliation_settings").select("owner_id,store_key").eq("coverage_active",true);
-    for(const x of data||[]) reports.push(await generateDailyReport(sb,x.owner_id,x.store_key,day,forceReport));
+    for(const x of data||[]) reports.push(await generateDailyReport(sb,x.owner_id,x.store_key,day,forceReport,now));
   }
   return {ok:true,reconciliation,reports,server_time:now.toISOString(),sydney_time:`${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`};
 }

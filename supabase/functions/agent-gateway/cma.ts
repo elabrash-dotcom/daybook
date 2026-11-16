@@ -12,6 +12,10 @@ export const GATEWAY_URL = `https://${SUPA_HOST}/functions/v1/agent-gateway`;
 const MODEL = "claude-haiku-5-5"; // about 1c a run; tested against Opus on the morning brief
 // Only StockWise's read tools are switched on; its HR write tools stay off.
 const READ_TOOLS = ["query_metrics", "list_records", "get_record", "search_inventory"];
+// Schedules that used to exist. Setup switches these off for good (archive, or pause as a fallback) and forgets them.
+const RETIRED_LABELS = ["cash_sync"]; // the old 15-minute Cash Audit POS sync
+export const MANUAL_SYNC_LABEL = "cash_sync_manual";
+const isManual = (label: string) => !!SCHEDULES.runs.find((r) => r.label === label)?.manual;
 
 export class HttpError extends Error {
   constructor(public status: number, msg: string) { super(msg); }
@@ -22,7 +26,7 @@ export type Cfg = {
   vault_id?: string; ingest_cred_id?: string; ingest_hash?: string;
   sw_client_id?: string; sw_cred_id?: string; sw_connected_at?: string;
   oauth?: { state_hash: string; verifier: string; return_to: string; exp: number } | null;
-  deployments?: Record<string, string>; schedules_on?: boolean;
+  deployments?: Record<string, string>; retired?: Record<string, string>; schedules_on?: boolean;
   chat_session_id?: string | null; chat_last_at?: string | null; setup_at?: string;
 };
 export type AgentRow = {
@@ -160,7 +164,8 @@ export async function setup(sb: SupabaseClient, row: AgentRow) {
       resources: memResources(cfg),
       budget: budget(),
       initial_events: [{ type: "user.message" as const, content: [{ type: "text" as const, text: r.prompt }] }],
-      schedule: { type: "cron" as const, expression: r.cron, timezone: SCHEDULES.timezone },
+      // A manual-only deployment has no schedule at all: it never fires by itself and only runs when Daybook starts it.
+      ...(r.cron ? { schedule: { type: "cron" as const, expression: r.cron, timezone: SCHEDULES.timezone } } : {}),
       metadata: { label: r.label, daybook_agent: row.slug },
     };
     if (deps[r.label]) await c.beta.deployments.update(deps[r.label], body);
@@ -169,9 +174,23 @@ export async function setup(sb: SupabaseClient, row: AgentRow) {
       deps[r.label] = d.id;
       cfg.deployments = { ...deps };
       await saveCfg(sb, row, cfg); // save at once: a later failure must never orphan this schedule (a retry would create a duplicate)
-      if (!cfg.schedules_on) await c.beta.deployments.pause(d.id);
+      if (r.cron && !cfg.schedules_on) await c.beta.deployments.pause(d.id);
     }
   }
+  // Switch off schedules that were replaced. Only the labels named in RETIRED_LABELS are touched.
+  const retired: Record<string, string> = { ...(cfg.retired ?? {}) };
+  for (const label of RETIRED_LABELS) {
+    const id = deps[label];
+    if (!id) continue;
+    try { await c.beta.deployments.archive(id); done.push(`old schedule ${label} archived`); }
+    catch (e1) {
+      try { await c.beta.deployments.pause(id); done.push(`old schedule ${label} paused`); }
+      catch (e2) { throw new HttpError(502, `Could not switch off the old ${label} schedule: ${(e2 instanceof Error ? e2.message : String(e2)).slice(0, 160)}`); }
+    }
+    retired[label] = id;
+    delete deps[label];
+  }
+  cfg.retired = retired;
   cfg.deployments = deps;
   cfg.setup_at = new Date().toISOString();
   await saveCfg(sb, row, cfg);
@@ -182,7 +201,8 @@ export async function setup(sb: SupabaseClient, row: AgentRow) {
 export async function setSchedules(sb: SupabaseClient, row: AgentRow, on: boolean) {
   const c = client();
   const cfg: Cfg = { ...(row.config ?? {}) };
-  for (const id of Object.values(cfg.deployments ?? {})) {
+  for (const [label, id] of Object.entries(cfg.deployments ?? {})) {
+    if (isManual(label)) continue; // the Sync Now deployment is never paused or resumed by the schedule switches
     const d = await c.beta.deployments.retrieve(id);
     if (on && d.status === "paused") await c.beta.deployments.unpause(id);
     if (!on && d.status === "active") await c.beta.deployments.pause(id);
@@ -193,7 +213,7 @@ export async function setSchedules(sb: SupabaseClient, row: AgentRow, on: boolea
 
 // Pause or resume ONE schedule (the master switch above handles all of them).
 export async function setSchedule(_sb: SupabaseClient, row: AgentRow, label: string, on: boolean) {
-  if (!SCHEDULES.runs.some((r) => r.label === label)) throw new HttpError(400, "unknown schedule");
+  if (!SCHEDULES.runs.some((r) => r.label === label && !r.manual)) throw new HttpError(400, "unknown schedule");
   const id = row.config?.deployments?.[label];
   if (!id) throw new HttpError(409, "This schedule isn't set up yet. Open Setup and tap Update first.");
   const c = client();
@@ -208,6 +228,7 @@ export async function scheduleList(row: AgentRow) {
   const out: { label: string; name: string; cron: string; status: string; next: string | null }[] = [];
   const c = hasKey() ? client() : null;
   for (const r of SCHEDULES.runs) {
+    if (r.manual || !r.cron) continue; // manual-only deployments are not part of the timetable
     const id = cfg.deployments?.[r.label];
     let status = id ? "unknown" : "not set up", next: string | null = null;
     if (id && c) {
@@ -217,6 +238,24 @@ export async function scheduleList(row: AgentRow) {
     out.push({ label: r.label, name: r.name, cron: r.cron, status, next });
   }
   return out;
+}
+
+// Read-only view of what Anthropic really has: the live timetable, the manual deployment, and the retired schedules.
+export async function scheduleReport(row: AgentRow) {
+  const cfg = row.config ?? {};
+  const c = hasKey() ? client() : null;
+  const one = async (id: string | undefined) => {
+    if (!id || !c) return null;
+    try {
+      const d = await c.beta.deployments.retrieve(id);
+      return { id, status: d.status, archived_at: d.archived_at ?? null, cron: d.schedule?.expression ?? null, timezone: d.schedule?.timezone ?? null, next: d.schedule?.upcoming_runs_at?.slice(0, 3) ?? [] };
+    } catch (e) { return { id, error: e instanceof Error ? e.message.slice(0, 120) : "error" }; }
+  };
+  const retired: Record<string, unknown> = {};
+  for (const [label, id] of Object.entries(cfg.retired ?? {})) retired[label] = await one(id);
+  const live: Record<string, unknown> = {};
+  for (const r of SCHEDULES.runs) if (r.label.startsWith("cash_sync")) live[r.label] = await one(cfg.deployments?.[r.label]);
+  return { live, retired, still_in_config: RETIRED_LABELS.filter((l) => cfg.deployments?.[l]) };
 }
 
 /* ---------- StockWise OAuth (authorization code + PKCE, public client) ---------- */

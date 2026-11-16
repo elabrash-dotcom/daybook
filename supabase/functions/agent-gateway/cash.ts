@@ -133,10 +133,12 @@ async function postConfirm(req: Request, who: CameraCaller, store: CashStore, re
 
 // Decides who may call what. Camera devices: /cash/* only. Everyone else: no /cash device routes.
 // Returns null when the request may continue, otherwise the refusal.
+// Routes that only a signed-in Daybook user may call (a camera token never can).
+const DAYBOOK_CASH_PATHS = new Set(["/cash/images", "/cash/review", "/cash/sync", "/cash/sync/status", "/cash/training/export", "/cash/training/review"]);
 export function cashGate(who: { channel?: string; isDevice: boolean }, path: string): { status: number; error: string } | null {
-  if (who.channel === "camera") return path.startsWith("/cash/") && path !== "/cash/images" ? null : { status: 403, error: "camera devices can only use /cash" };
-  if (path.startsWith("/cash/") && path !== "/cash/images" && path !== "/cash/review") return { status: 403, error: "camera devices only" };
-  if (path === "/cash/images" && who.isDevice) return { status: 403, error: "Daybook only" };
+  if (who.channel === "camera") return path.startsWith("/cash/") && !DAYBOOK_CASH_PATHS.has(path) ? null : { status: 403, error: "camera devices can only use /cash" };
+  if (path.startsWith("/cash/") && !DAYBOOK_CASH_PATHS.has(path)) return { status: 403, error: "camera devices only" };
+  if (DAYBOOK_CASH_PATHS.has(path) && who.isDevice) return { status: 403, error: "Daybook only" };
   return null;
 }
 

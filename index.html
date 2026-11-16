@@ -714,6 +714,10 @@ body.askopen{overflow:hidden}
 .agah{font-size:14px;color:var(--ink-2);font-weight:700}
 .agat{white-space:pre-wrap;word-break:break-word;background:var(--soft);border-radius:12px;padding:10px 12px;font-size:15px;line-height:1.4}
 .agfine{font-size:12.5px;color:var(--ink-3);font-weight:700}
+.cashsync{display:flex;flex-direction:column;gap:8px;background:var(--surface);border-radius:22px;box-shadow:var(--shadow);padding:14px 16px}
+.cashsyncrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.cashsyncrow .agbtn{flex:none;min-width:0;padding:0 18px}
+.cashsyncline{font-size:13.5px;color:var(--ink)}
 .agfilt.cashfilt{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding:2px}
 .agfilt.cashfilt::-webkit-scrollbar{display:none}
 .cashbox{position:relative;border-radius:14px;overflow:hidden;background:var(--soft);line-height:0}
@@ -733,6 +737,7 @@ body.askopen{overflow:hidden}
 .cashviewzoom output{min-width:42px;text-align:center;font-size:13px;font-weight:800}
 @media (max-width:430px){.cashviewhint{max-width:160px}.cashviewzoom button{width:38px;height:38px}}
 .cashnone{background:var(--soft);border-radius:14px;padding:22px 14px;text-align:center;color:var(--ink-2);font-weight:700;font-size:15px;line-height:1.4}
+.cashtabs{display:flex;gap:8px}.cashtabs button{flex:1;height:42px;border-radius:999px;background:var(--soft);font-weight:800;font-size:15px}.cashtabs button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}.trgrp{font-weight:800;font-size:13px;letter-spacing:.04em;text-transform:uppercase;opacity:.7;margin:14px 4px 2px}.trgrp small{font-weight:600;opacity:.8;text-transform:none;letter-spacing:0}.trimgs{display:grid;grid-template-columns:1fr 1fr;gap:8px}.trimgs figure{margin:0}.trimgs figcaption{font-size:12px;font-weight:800;opacity:.7;margin-bottom:4px}.trimgs .cashimg{cursor:default;max-height:30vh}.trwarn{font-size:13px;color:#b4690e;font-weight:700}
 .cashseg{display:inline-flex;background:var(--soft);border-radius:999px;padding:3px;gap:2px}
 .cashseg button{height:34px;padding:0 16px;border-radius:999px;font-weight:800;font-size:14.5px}
 .cashseg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
@@ -905,6 +910,8 @@ let cashHas = false, cashTodo = 0, cashLoaded = false, cashLoading = false, cash
 let cashFilt = {range:'today', day:'', store:'', label:'all'};
 let cashOpenId = null, cashImgs = {}, cashSide = {}, cashBoxes = true, cashNew = false, cashChan = null, cashViewerClose = null;
 let cashRestoreScroll = false;
+let cashView = 'events', trainRows = [], trainLoaded = false, trainLoading = false, trainErr = '', trainCount = null, trainOpenId = null, trainFilt = {status:'active', store:''}, trainBusy = '', trainSeq = 0, trainMissing = false, trainNote = '';
+let cashSync = null, cashSyncErr = '', cashSyncT = null, cashSyncNote = '', cashSyncBusy = false;
 let mode = 'day';        // day | history
 let histLimit = 60, showSomeday = false, tq = null, tsFocus = false;
 // Agents section state (see the Agents block further down)
@@ -2517,20 +2524,101 @@ async function cashStart(){
     if(!a.error && !cashChan){
       cashChan = sb.channel('cash-events').on('postgres_changes', {event:'*', schema:'public', table:'cash_events'}, p => {
         cashHas = true; if(p.eventType === 'INSERT'){ cashTodo++; cashNew = true; } if(mode === 'cash') cashLoad(); else if(mode === 'day') render();
-      }).subscribe();
+      }).on('postgres_changes', {event:'*', schema:'public', table:'cash_training_examples'}, () => { cashTrainCount(); if(mode === 'cash' && cashView === 'training') cashTrainLoad(); }).subscribe();
     }
+    cashTrainCount();
   }catch(_){ cashHas = false; }
   if(mode === 'day') render();
 }
-function cashStop(){ if(cashViewerClose) cashViewerClose(); if(cashChan){ try{ sb.removeChannel(cashChan); }catch(_){} cashChan = null; } cashHas = false; cashLoaded = false; cashEvents = []; cashPayments = []; cashReports = []; cashImgs = {}; cashOpenId = null; cashSeq++; }
+function cashStop(){ clearTimeout(cashSyncT); cashSync = null; cashSyncNote = ''; cashSyncBusy = false; if(cashViewerClose) cashViewerClose(); if(cashChan){ try{ sb.removeChannel(cashChan); }catch(_){} cashChan = null; } cashHas = false; cashView = 'events'; trainRows = []; trainLoaded = false; trainCount = null; trainOpenId = null; trainNote = ''; trainBusy = ''; trainSeq++; trainMissing = false; cashLoaded = false; cashEvents = []; cashPayments = []; cashReports = []; cashImgs = {}; cashOpenId = null; cashSeq++; }
 function cashOpen(){
-  mode = 'cash'; tq = null; cashOpenId = null; render(); window.scrollTo({top:0});
-  cashLimit = CASH_PAGE; cashLoad();
+  mode = 'cash'; tq = null; cashOpenId = null; cashView = 'events'; trainOpenId = null; render(); window.scrollTo({top:0});
+  cashLimit = CASH_PAGE; cashLoad(); cashSyncLoad();
+}
+// ---- Sync POS Now: starts the existing StockWise agent (real fetch), shows progress, then refreshes the screen ----
+const cashN = n => n + ' new invoice' + (n === 1 ? '' : 's');
+async function cashSyncLoad(){
+  const was = !!(cashSync && cashSync.active);
+  try{ const r = await agCall('GET', '/cash/sync/status'); if(r && r.ok){ cashSync = r; cashSyncErr = ''; } }
+  catch(e){ cashSyncErr = e && e.message ? e.message : 'error'; }
+  clearTimeout(cashSyncT); cashSyncT = null;
+  if(mode === 'cash' && cashSync && cashSync.active) cashSyncT = setTimeout(cashSyncLoad, 3000);   // poll while a sync runs
+  if(was && cashSync && !cashSync.active) cashSyncDone();
+  if(mode === 'cash') render();
+}
+function cashSyncDone(){
+  const j = cashSync && cashSync.last_job; if(!j) return;
+  toast(j.status === 'done' ? '✅ POS sync finished · ' + cashN(j.imported) : '⚠️ POS sync failed' + (j.error ? ': ' + j.error : ''));
+  cashLimit = CASH_PAGE; cashLoad(); cashStart();                                                    // refresh the reconciliation screen
+}
+async function cashSyncStart(){
+  if(cashSyncBusy || (cashSync && cashSync.active)) return;
+  cashSyncBusy = true; cashSyncNote = ''; render();
+  try{ await agCall('POST', '/cash/sync'); }
+  catch(e){ cashSyncNote = e && e.message ? e.message : 'Couldn’t start the sync'; }                 // includes "already running"
+  cashSyncBusy = false; await cashSyncLoad();
+}
+function cashSyncBlock(){
+  const s = cashSync;
+  if(!s) return cashSyncErr ? `<div class="agfine">Sync status unavailable: ${esc(cashSyncErr)}</div>` : '';
+  const act = s.active, lj = s.last_job, ok = s.last_ok, running = !!act || cashSyncBusy;
+  const when = iso => { const ms = Date.parse(iso); return ms ? dayLabel(sydYmd(ms)) + ' · ' + timeOf(ms) : '—'; };
+  let line = '';
+  if(running) line = `⏳ Fetching from StockWise… started ${esc(act ? timeOf(Date.parse(act.started_at)) : 'now')}. The screen refreshes when it finishes.`;
+  else if(cashSyncNote) line = `⚠️ ${esc(cashSyncNote)}`;
+  else if(lj && lj.status === 'failed') line = `⚠️ Last manual sync failed: ${esc(lj.error || 'unknown error')}`;
+  else if(lj && lj.status === 'done') line = `✅ Last manual sync (${esc(when(lj.started_at))}): ${esc(cashN(lj.imported))}`;
+  const last = ok ? `Last successful sync: ${esc(when(ok.at))} · ${esc(cashN(ok.new_count))}` : 'No sync recorded yet';
+  const hint = !s.ready ? '<div class="agfine">Not set up yet: open Agents → Setup and tap Update (or Create) once.</div>' : '';
+  return `<div class="cashsync"><div class="cashsyncrow"><button type="button" class="agbtn ok" data-cashsync="1"${running || !s.ready ? ' disabled' : ''}>${running ? 'Syncing…' : 'Sync POS Now'}</button><div class="agfine">${last}</div></div>${line ? `<div class="agfine cashsyncline">${line}</div>` : ''}${hint}<div class="agfine">Scheduled syncs: 1:00 PM and 6:45 PM.</div></div>`;
 }
 function renderCashTile(){
   if(!cashHas) return '';
   const sub = cashTodo ? cashTodo + ' to review today' : 'Camera cash events';
   return `<button type="button" class="laterbar cashtool" data-cash aria-label="Open Cash audit"><span class="lic">💵</span><span class="ltxt"><b>Cash audit</b><small>${esc(sub)}</small></span>${cashTodo ? `<span class="lcount hot">${cashTodo}</span>` : `<span class="lchev">${I.right}</span>`}</button>`;
+}
+
+// ---- Training data: false detections collected automatically when an event is labelled False Detection ----
+const TRAIN_STATUS = {active:['collected','reviewed'], todo:['collected'], reviewed:['reviewed'], excluded:['excluded']};
+const TRAIN_COLS = 'id,event_id,event_uid,store_key,camera_label,device_id,class_name,detected_at,confidence,model_version,reason,image_state,status,review_note';
+const trainBase = (q, withStatus) => { q = q.not('store_key', 'ilike', '%fairfield%'); if(withStatus) q = q.in('status', TRAIN_STATUS[trainFilt.status] || TRAIN_STATUS.active); if(trainFilt.store) q = q.eq('store_key', trainFilt.store); return q; };
+async function cashTrainCount(){
+  try{
+    const {count, error} = await sb.from('cash_training_examples').select('id', {count:'exact', head:true}).not('store_key', 'ilike', '%fairfield%').in('status', TRAIN_STATUS.active);
+    if(error){ trainMissing = true; trainCount = null; } else { trainMissing = false; trainCount = count || 0; }
+  }catch(_){ trainMissing = true; trainCount = null; }
+  if(mode === 'cash') render();
+}
+async function cashTrainLoad(){
+  const my = ++trainSeq; trainLoading = true; trainErr = ''; if(mode === 'cash') render();
+  try{
+    const {data, error} = await trainBase(sb.from('cash_training_examples').select(TRAIN_COLS), true).order('detected_at', {ascending:false}).limit(200);
+    if(my !== trainSeq) return;
+    if(error) throw error;
+    trainRows = data || []; trainLoaded = true;
+  }catch(e){ if(my !== trainSeq) return; trainErr = 'Couldn’t load training data: ' + (e && e.message ? e.message : e); }
+  trainLoading = false; if(mode === 'cash') render();
+}
+function cashTrainOpenTab(){ cashView = 'training'; trainOpenId = null; cashTrainCount(); cashTrainLoad(); }
+async function cashTrainAct(id, action){
+  const row = trainRows.find(r => r.id === id); if(!row) return;
+  try{ await agCall('POST', '/cash/training/review', {id, action}); toast(action === 'reviewed' ? 'Marked as reviewed' : action === 'excluded' ? 'Excluded from the dataset' : 'Included again'); }
+  catch(e){ toast('Couldn’t save: ' + (e && e.message ? e.message : e)); }
+  cashRestoreScroll = true; await cashTrainLoad(); cashTrainCount();
+}
+async function cashTrainImages(row){ if(row && row.event_id) await cashImages(row.event_id); if(mode === 'cash' && trainOpenId === row.id) render(); }
+async function cashTrainExport(){
+  if(trainBusy) return; trainBusy = 'export'; trainNote = ''; render();
+  try{
+    const qs = new URLSearchParams({status: (TRAIN_STATUS[trainFilt.status] || TRAIN_STATUS.active).join(',')}); if(trainFilt.store) qs.set('store', trainFilt.store);
+    const r = await fetch(AG_FN + '/cash/training/export?' + qs, {headers:{authorization:'Bearer ' + await agToken()}});
+    if(!r.ok){ const j = await r.json().catch(() => ({})); throw new Error(j.error || ('error ' + r.status)); }
+    const blob = await r.blob(), a = document.createElement('a'), name = (/filename="([^"]+)"/.exec(r.headers.get('content-disposition') || '') || [])[1] || 'false-detections.zip';
+    a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    const inc = r.headers.get('x-training-included'), tot = r.headers.get('x-training-total'), miss = +r.headers.get('x-training-missing-images') || 0;
+    trainNote = '✅ Exported ' + inc + ' of ' + tot + ' examples' + (r.headers.get('x-training-truncated') === 'true' ? ' (limit reached: narrow the filter and export again)' : '') + (miss ? ' · ' + miss + ' frame' + (miss === 1 ? '' : 's') + ' missing (see warnings in each meta.json)' : '');
+  }catch(e){ trainNote = '⚠️ Export failed: ' + (e && e.message ? e.message : e); }
+  trainBusy = ''; render();
 }
 
 // Images: asked for only when an event is opened. Links last 10 minutes; reused until 9 minutes old.
@@ -2667,6 +2755,49 @@ function cashDetail(ev, idx){
     ${ev.label ? `<textarea id="cashNote" class="cashnote" rows="2" maxlength="500" placeholder="Note (optional)" aria-label="Note">${esc(ev.label_note || '')}</textarea><div class="agacts"><button type="button" class="agbtn ok" data-cashnote="1">Save note</button>${next ? '<button type="button" class="agbtn" style="background:var(--ink);color:var(--bg)" data-cashnext="' + esc(next.id) + '">Next to review ›</button>' : ''}</div>` : ''}
   </div>`;
 }
+
+function cashTabs(){
+  if(trainMissing && cashView === 'events') return '';
+  const n = trainCount == null ? '' : ' (' + trainCount + ')';
+  return `<div class="cashtabs" role="group" aria-label="Cash audit view"><button type="button" data-cashview="events" aria-pressed="${cashView === 'events'}">Events</button><button type="button" data-cashview="training" aria-pressed="${cashView === 'training'}">Training data${n}</button></div>`;
+}
+const TRAIN_BADGE = {collected:'🆕 To review', reviewed:'✅ Reviewed', excluded:'🚫 Excluded', withdrawn:'↩ Label removed'};
+function trainDetail(r){
+  const im = r.event_id ? cashImgs[r.event_id] : null;
+  let imgs;
+  if(!r.event_id) imgs = '<div class="cashnone">The original detection has expired, so only the saved details are kept.</div>';
+  else if(!im || im.loading) imgs = '<div class="cashnone">Loading frames…</div>';
+  else if(im.err) imgs = `<div class="cashnone">Couldn’t load the frames (${esc(im.err)}). <button type="button" class="agchip" data-trainimgs="${esc(r.id)}">Try again</button></div>`;
+  else imgs = `<div class="trimgs"><figure><figcaption>Original</figcaption>${im.raw ? `<img class="cashimg" src="${esc(im.raw)}" alt="Original frame" decoding="async">` : '<div class="cashnone">Not available</div>'}</figure><figure><figcaption>Annotated</figcaption>${im.annotated ? `<img class="cashimg" src="${esc(im.annotated)}" alt="Annotated frame" decoding="async">` : '<div class="cashnone">Not available</div>'}</figure></div>`;
+  const warn = r.image_state === 'ok' ? '' : `<div class="trwarn">${r.image_state === 'missing' ? 'No frame was uploaded for this detection.' : r.image_state === 'raw_only' ? 'Annotated frame is missing.' : r.image_state === 'annotated_only' ? 'Original frame is missing.' : 'Original was archived (re-encoded copy).'}</div>`;
+  const rows = [['Camera', (cashStoreName(r.store_key)) + (r.camera_label ? ' · ' + r.camera_label : '')], ['Class', r.class_name], r.confidence != null ? ['Confidence', cashPct(r.confidence)] : null, r.model_version ? ['Model', r.model_version] : null, ['Reason', r.reason || '—'], r.review_note ? ['Review note', r.review_note] : null].filter(Boolean);
+  const acts = r.status === 'excluded' || r.status === 'withdrawn'
+    ? (r.status === 'excluded' ? `<button type="button" class="agbtn" data-trainact="include" data-trainid="${esc(r.id)}">Include again</button>` : '<div class="agfine">The false label was removed on the event.</div>')
+    : `${r.status === 'reviewed' ? '' : `<button type="button" class="agbtn ok" data-trainact="reviewed" data-trainid="${esc(r.id)}">Mark reviewed</button>`}<button type="button" class="agbtn" data-trainact="excluded" data-trainid="${esc(r.id)}">Exclude</button>`;
+  return `<div class="agbody cashdet">${imgs}${warn}<div class="cashkv">${rows.map(x => `<span>${esc(x[0])}</span><b>${esc(x[1])}</b>`).join('')}</div><div class="agacts">${acts}</div></div>`;
+}
+function renderTraining(){
+  const C = (k, v, l) => `<button type="button" class="agchip" data-trainf="${k}.${v}" aria-pressed="${trainFilt[k] === v}">${l}</button>`;
+  let h = `<div class="agfilt cashfilt">${C('status','active','Active')}${C('status','todo','🆕 To review')}${C('status','reviewed','✅ Reviewed')}${C('status','excluded','🚫 Excluded')}</div>`
+    + `<div class="agfilt cashfilt"><button type="button" class="agchip" data-trainf="store.all" aria-pressed="${!trainFilt.store}">All stores</button>${['mcc','mobiletek'].map(k => C('store', k, cashStoreName(k))).join('')}</div>`;
+  h += `<div class="cashsync"><div class="cashsyncrow"><button type="button" class="agbtn ok" data-trainexport="1"${trainBusy || !trainRows.length ? ' disabled' : ''}>${trainBusy ? 'Preparing ZIP…' : '⬇ Export ZIP'}</button><div class="agfine">Originals, annotated images and JSON, grouped by camera, date and class.</div></div>${trainNote ? `<div class="agfine cashsyncline">${esc(trainNote)}</div>` : ''}</div>`;
+  if(trainErr) return h + `<div class="empty"><b>Something went wrong</b>${esc(trainErr)}<br><button type="button" class="agchip" data-trainrefresh="1">Try again</button></div>`;
+  if(!trainLoaded && trainLoading) return h + '<div class="empty"><b>Loading…</b></div>';
+  if(!trainRows.length) return h + `<div class="empty"><b>No training examples</b>${trainFilt.status === 'active' ? 'When you mark a detection as ❌ False Detection it is collected here automatically.' : 'Nothing matches this filter.'}</div>`;
+  const groups = new Map();
+  trainRows.forEach(r => { const ms = Date.parse(r.detected_at), d = ms ? sydYmd(ms) : '', k = cashStoreName(r.store_key) + (r.camera_label ? ' · ' + r.camera_label : ''); const key = k + '|' + d + '|' + r.class_name; if(!groups.has(key)) groups.set(key, {cam:k, day:d, cls:r.class_name, rows:[]}); groups.get(key).rows.push(r); });
+  let lastCam = '';
+  for(const g of groups.values()){
+    if(g.cam !== lastCam){ lastCam = g.cam; h += `<div class="trgrp">${esc(g.cam)}</div>`; }
+    h += `<div class="agday">${esc(g.day ? dayLabel(g.day) : 'Unknown date')} · ${esc(g.cls)} <small>(${g.rows.length})</small></div><div class="aglist">`;
+    for(const r of g.rows){
+      const open = trainOpenId === r.id, ms = Date.parse(r.detected_at), sev = r.status === 'reviewed' ? '#2FA66A' : r.status === 'collected' ? '#E0473A' : '#8a8f98';
+      h += `<div class="agcard cashcard" style="--sev:${sev}"><button type="button" class="aghead" data-trainopen="${esc(r.id)}" aria-expanded="${open}"><div class="agmeta"><span class="agsev">${TRAIN_BADGE[r.status] || esc(r.status)}</span>${r.image_state !== 'ok' ? '<span class="agsev">⚠ frame</span>' : ''}<span class="agtime">${esc(ms ? timeOf(ms) : '')}</span></div><div class="aghl">${esc(r.class_name)}${r.confidence != null ? ' · ' + cashPct(r.confidence) : ''}</div><div class="agprev">${esc(r.reason || 'No reason given')}</div></button>${open ? trainDetail(r) : ''}</div>`;
+    }
+    h += '</div>';
+  }
+  return h;
+}
 function cashReportBlock(){
   const r = cashReports[0]; if(!r) return '';
   return `<details class="agcard" style="--sev:#4ad6ff"><summary class="aghead"><div class="agmeta"><span class="agsev">🧾 Daily text report</span><span class="agtime">${esc(dayLabel(r.business_date))}</span></div><div class="aghl">${esc(r.store_name)} · ${r.matched_count} matched</div><div class="agprev">${r.pos_cash_count} POS cash · $${Number(r.pos_cash_amount).toFixed(2)} · ${r.pos_without_detection_count+r.unmatched_camera_count+r.needs_review_count} exceptions</div></summary><div class="agbody" style="white-space:pre-wrap">${esc(r.body_text)}</div></details>`;
@@ -2684,6 +2815,9 @@ function cashFilters(){
 }
 function renderCash(){
   let h = `<button class="back" data-back>${I.left}Back</button><div class="head"><h3 style="font-size:28px">Cash audit</h3><span class="ts" style="margin-left:auto">${cashToReview} to review</span></div><div class="agpage">`;
+  h += cashTabs();
+  if(cashView === 'training'){ return h + renderTraining() + '</div>'; }
+  h += cashSyncBlock();
   h += cashFilters();
   h += cashReportBlock();
   if(cashNew) h += `<button type="button" class="agchip" data-cashrefresh="1" style="align-self:flex-start">🔔 New events — tap to refresh</button>`;
@@ -2716,7 +2850,7 @@ async function cashSetLabel(id, v){
   cashRestoreScroll = true; render();
   const {error} = await sb.from('cash_events').update({label: nl, label_note: nl ? (ev.label_note || null) : null}).eq('id', id);
   if(error){ ev.label = prev.label; ev.label_note = prev.note; if(!prev.label && nl) cashToReview++; else if(prev.label && !nl) cashToReview = Math.max(0, cashToReview - 1); toast('Couldn’t save the label: ' + error.message); cashRestoreScroll = true; render(); return; }
-  cashStart();
+  cashStart(); cashTrainCount();
 }
 async function cashSaveNote(id){
   const ev = cashEvents.find(e => e.id === id), ta = $('#cashNote'); if(!ev || !ta || !ev.label) return;
@@ -2757,6 +2891,14 @@ $('#app').addEventListener('click', e => {
   else if(d.cashlabel && cashOpenId) cashSetLabel(cashOpenId, d.cashlabel);
   else if(d.cashmatch && cashOpenId) cashReview(cashOpenId,'match',d.cashmatch);
   else if(d.cashreview && cashOpenId) cashReview(cashOpenId,d.cashreview);
+  else if(d.cashsync) cashSyncStart();
+  else if(d.cashview){ if(d.cashview === 'training') cashTrainOpenTab(); else { cashView = 'events'; render(); } }
+  else if(d.trainopen){ const id = d.trainopen; trainOpenId = trainOpenId === id ? null : id; cashRestoreScroll = true; render(); const r = trainRows.find(x => x.id === id); if(trainOpenId && r) cashTrainImages(r); }
+  else if(d.trainact && d.trainid) cashTrainAct(d.trainid, d.trainact);
+  else if(d.trainexport) cashTrainExport();
+  else if(d.trainimgs){ const r = trainRows.find(x => x.id === d.trainimgs); if(r && r.event_id){ cashImages(r.event_id, true); cashTrainImages(r); } }
+  else if(d.trainrefresh) cashTrainLoad();
+  else if(d.trainf){ const [k, ...rr] = d.trainf.split('.'), v = rr.join('.'); if(k === 'status') trainFilt.status = v; else if(k === 'store') trainFilt.store = v === 'all' || trainFilt.store === v ? '' : v; trainOpenId = null; cashTrainLoad(); }
   else if(d.cashnote && cashOpenId) cashSaveNote(cashOpenId);
   else if(d.cashnext){ cashOpenId = null; cashSelect(d.cashnext); const el = document.querySelector('[data-cashopen="' + d.cashnext + '"]'); if(el) el.scrollIntoView({block:'start'}); }
   else if(d.cashside && cashOpenId){ cashSide[cashOpenId] = d.cashside; cashRestoreScroll = true; render(); }
