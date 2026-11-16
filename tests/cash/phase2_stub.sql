@@ -9,3 +9,6 @@ create table if not exists public.app_secrets (k text primary key, v text not nu
 insert into public.app_secrets values ('cron_key','test-key') on conflict do nothing;
 create table if not exists public.agents (id uuid primary key default gen_random_uuid(), owner_id uuid, slug text);
 create table if not exists public.agent_cards (id uuid primary key default gen_random_uuid(), owner_id uuid, agent_id uuid, kind text, headline text);
+create table if not exists public.agent_runs (
+  id uuid primary key default gen_random_uuid(), owner_id uuid, agent_id uuid, trigger text, schedule_label text,
+  status text, session_id text unique, started_at timestamptz default now(), finished_at timestamptz, cost_usd numeric, error text, created_at timestamptz default now());

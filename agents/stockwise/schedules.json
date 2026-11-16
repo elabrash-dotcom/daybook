@@ -2,7 +2,11 @@
   "timezone": "Australia/Sydney",
   "budget_usd_cents": "100",
   "runs": [
-    { "label": "cash_sync", "name": "Cash Audit POS sync", "cron": "*/15 9-18 * * *",
+    { "label": "cash_sync_1pm", "name": "Cash Audit POS sync · 1:00 PM", "cron": "0 13 * * *",
+      "prompt": "[CASH_SYNC] Refresh MCC Eastern Creek completed cash invoices for today and yesterday, post the confirmed machine records to the Cash Audit sync endpoint, and do not create a card or image." },
+    { "label": "cash_sync_645pm", "name": "Cash Audit POS sync · 6:45 PM", "cron": "45 18 * * *",
+      "prompt": "[CASH_SYNC] Refresh MCC Eastern Creek completed cash invoices for today and yesterday, post the confirmed machine records to the Cash Audit sync endpoint, and do not create a card or image." },
+    { "label": "cash_sync_manual", "name": "Cash Audit POS sync · Sync Now button", "manual": true,
       "prompt": "[CASH_SYNC] Refresh MCC Eastern Creek completed cash invoices for today and yesterday, post the confirmed machine records to the Cash Audit sync endpoint, and do not create a card or image." },
     { "label": "morning", "name": "Morning brief", "cron": "30 8 * * *",
       "prompt": "Morning brief. Yesterday's result per shop vs its daily target, month-to-date vs target-to-date (amount and %), and what each shop needs per trading day to finish the month. Note open repair tickets. One combined brief card with a pop-scoreboard poster; add an alert card only if a shop is clearly behind." },
