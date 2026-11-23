@@ -106,15 +106,17 @@ test("archived originals are flagged as archived (re-encoded copy), not pretende
   assert.equal(q(`select archive from cash_training_assets('${A}', array['${e.id}']::uuid[])`), `${A}/archive/x.webp`);
 });
 
-test("withdrawing the false label releases only the hold this feature placed", () => {
+test("withdrawing the false label releases the training hold, but never a person's hold", () => {
   const e = ev(); label(e.id, "false_detection");
   label(e.id, null);
-  assert.equal(q(`select status||'|'||hold_set from cash_training_examples where event_id='${e.id}'`), "withdrawn|false");
+  assert.equal(q(`select status||'|'||hold_set||'|'||hold_release_reason from cash_training_examples where event_id='${e.id}'`), "withdrawn|false|withdrawn");
   assert.equal(q(`select preserve from cash_events where id='${e.id}'`), "f");
-  const mine = ev(`update cash_events set preserve=true where id='$ID'`); label(mine.id, "false_detection");
-  assert.equal(q(`select hold_set from cash_training_examples where event_id='${mine.id}'`), "f", "a hold the user placed is not ours");
+  const mine = ev(`update cash_events set preserve=true where id='$ID'`);                       // a person held it first
+  assert.equal(q(`select user_hold from cash_events where id='${mine.id}'`), "t");
+  label(mine.id, "false_detection");
+  assert.equal(q(`select hold_set from cash_training_examples where event_id='${mine.id}'`), "t", "the training hold is recorded as well");
   label(mine.id, null);
-  assert.equal(q(`select preserve from cash_events where id='${mine.id}'`), "t", "the user's own hold is untouched");
+  assert.equal(q(`select preserve||'|'||user_hold from cash_events where id='${mine.id}'`), "true|true", "the person's own hold is untouched");
   label(e.id, "false_detection");
   assert.equal(q(`select status||'|'||hold_set from cash_training_examples where event_id='${e.id}'`), "collected|true", "re-labelling re-activates the same example");
   assert.equal(q(`select preserve from cash_events where id='${e.id}'`), "t");
@@ -127,7 +129,7 @@ test("review actions: reviewed, excluded (releases our hold), include again", ()
   assert.equal(rv("reviewed", "good example").ok, true);
   assert.equal(q(`select status||'|'||review_note from cash_training_examples where id='${id}'`), "reviewed|good example");
   assert.equal(rv("excluded").ok, true);
-  assert.equal(q(`select preserve from cash_events where id='${e.id}'`), "f");
+  assert.equal(q(`select preserve||'|'||hold_set||'|'||hold_release_reason from cash_events e join cash_training_examples x on x.event_id=e.id where e.id='${e.id}'`), "false|false|excluded");
   assert.equal(rv("reviewed").ok, false, "excluded must be included again first");
   label(e.id, "false_detection", "edit"); // a note edit never resurrects an excluded example
   assert.equal(q(`select status from cash_training_examples where id='${id}'`), "excluded");

@@ -66,5 +66,5 @@ test("realtime: the migration publishes the training table (like cash_events) so
 test("the UI listens to both tables and refreshes the count and list when either changes", () => {
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
   assert.match(html, /table:'cash_events'/); assert.match(html, /table:'cash_training_examples'\}, \(\) => \{ cashTrainCount\(\);/);
-  assert.match(html, /cashStart\(\); cashTrainCount\(\);\n\}\nasync function cashSaveNote/, "the count is refreshed right after a label is saved");
+  assert.match(html, /cashStart\(\); cashTrainCount\(\);[^\n]*\n\}\nasync function cashSaveNote/, "the count is refreshed right after a label is saved");
 });

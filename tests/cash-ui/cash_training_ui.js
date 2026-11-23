@@ -13,7 +13,7 @@ const ev = { id:EID, preserve:false, store_key:'mcc', event_uid:'e1', detected_a
   snapshot_raw_path:'u1/mcc/d/e1/raw.jpg', snapshot_annotated_path:'u1/mcc/d/e1/annotated.jpg', clip_path:null, match_status:'pending', matched_payment_id:null, match_delta_seconds:null, match_locked:false, match_note:null, label:null, label_note:null, matched_payment:null };
 const train = [];      // rows of cash_training_examples (the database trigger is simulated by the PATCH handler)
 let tableMissing = false, exportMode = 'ok';
-const reviews = [], patches = [], zipReqs = [], errors = [];
+const holdPatches = [], reviews = [], patches = [], zipReqs = [], errors = [];
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 const ZIP = Buffer.from('504b0506000000000000000000000000000000000000', 'hex');   // an empty but valid ZIP
 
@@ -46,8 +46,16 @@ const ZIP = Buffer.from('504b0506000000000000000000000000000000000000', 'hex'); 
       return cr(rows);
     }
     if(p === '/rest/v1/cash_events'){
-      if(m === 'PATCH'){ const b = JSON.parse(r.request().postData() || '{}'); patches.push(b); ev.label = b.label; ev.label_note = b.label_note;
-        if(b.label === 'false_detection' && !train.some(t => t.event_id === EID)) train.push({id:'t1', event_id:EID, event_uid:'e1', store_key:'mcc', camera_label:'MCC Jetson D3', device_id:'d1', class_name:'cash', detected_at:ev.detected_at, confidence:0.7, model_version:'yolo-cash-v3', reason:b.label_note, image_state:'ok', status:'collected', review_note:null});
+      if(m === 'PATCH'){ const b = JSON.parse(r.request().postData() || '{}'); const hold = ('preserve' in b) || ('user_hold' in b);
+        if(hold){ holdPatches.push(b);
+          const th = train.find(t => t.event_id === EID && t.hold_set);
+          if('preserve' in b) ev.preserve = b.preserve || !!th;            // the database keeps frames held while training needs them
+          if('user_hold' in b) ev.user_hold = !!b.user_hold; else if('preserve' in b) ev.user_hold = !!b.preserve;
+          const want = (r.request().headers()['prefer'] || '').includes('return=representation');
+          return want ? r.fulfill({status:200, contentType:'application/json', headers:H, body: JSON.stringify({id:EID, preserve:ev.preserve, user_hold:ev.user_hold})}) : r.fulfill({status:204, headers:H}); }
+        patches.push(b); ev.label = b.label; ev.label_note = b.label_note;
+        if(b.label === 'false_detection' && !train.some(t => t.event_id === EID)){ ev.preserve = true;
+          train.push({id:'t1', event_id:EID, event_uid:'e1', store_key:'mcc', camera_label:'MCC Jetson D3', device_id:'d1', class_name:'cash', detected_at:ev.detected_at, confidence:0.7, model_version:'yolo-cash-v3', reason:b.label_note, image_state:'ok', status:'collected', review_note:null, hold_set:true, hold_until:new Date(now + 180*864e5).toISOString(), hold_release_reason:null}); }
         return r.fulfill({status:204, headers:H}); }
       return cr([ev]);
     }
@@ -67,6 +75,14 @@ const ZIP = Buffer.from('504b0506000000000000000000000000000000000000', 'hex'); 
   await pg.waitForFunction(() => /Training data \(1\)/.test(document.querySelector('.cashtabs').innerText), null, {timeout: 8000});
   ok(patches.length === 1 && patches[0].label === 'false_detection', 'marking False saves the label exactly as before (one update, same fields)');
   ok(true, 'the Training data count refreshed to 1 after the label was saved');
+  await pg.waitForSelector('[data-cashhold="keep"]', {timeout: 8000});
+  ok(/kept for training data until/i.test(await pg.locator('.cashdet').innerText()), 'the event shows that frames are kept for training data, with the end date');
+  await pg.click('[data-cashhold="keep"]'); await pg.waitForSelector('[data-cashhold="0"]');
+  ok(holdPatches.length === 1 && holdPatches[0].user_hold === true && !('preserve' in holdPatches[0]), '"Keep permanently" records a person\'s own hold only');
+  pg.once('dialog', d => d.accept());
+  await pg.click('[data-cashhold="0"]'); await pg.waitForSelector('[data-cashhold="keep"]');
+  ok(holdPatches.length === 2 && holdPatches[1].preserve === false && holdPatches[1].user_hold === false, 'releasing the person\'s hold asks the database, which keeps the training hold');
+  ok(/kept for training data/i.test(await pg.locator('.cashdet').innerText()), 'and the screen still shows the frames are kept for training');
 
   // 2. the dataset screen: grouped by camera / date / class
   await pg.click('[data-cashview="training"]'); await pg.waitForSelector('[data-trainopen]');
@@ -79,6 +95,7 @@ const ZIP = Buffer.from('504b0506000000000000000000000000000000000000', 'hex'); 
   const det = await pg.locator('.cashdet').innerText();
   ok(await pg.locator('.trimgs img').count() === 2 && /Original/.test(det) && /Annotated/.test(det), 'original and annotated frames are shown side by side');
   ok(/yolo-cash-v3/.test(det) && /70%/.test(det), 'model version and confidence are shown');
+  ok(/Frames kept\s*until/i.test(det), 'the training screen shows how long the frames are kept');
 
   // 4. mark reviewed
   await pg.click('[data-trainact="reviewed"]'); await pg.waitForFunction(() => /Reviewed/.test(document.querySelector('.agpage').innerText), null, {timeout: 8000});
@@ -107,7 +124,7 @@ const ZIP = Buffer.from('504b0506000000000000000000000000000000000000', 'hex'); 
   exportMode = 'ok';
 
   // 8. missing frame example shows a warning
-  train[0].image_state = 'missing'; train[0].status = 'collected'; await pg.click('[data-trainrefresh], [data-trainf="status.active"]'); await pg.waitForSelector('[data-trainopen]');
+  train[0].image_state = 'missing'; train[0].status = 'collected'; await pg.click('[data-trainf="status.todo"]'); await pg.waitForFunction(() => /⚠ frame/i.test(document.querySelector('.agpage').innerText), null, {timeout: 8000}).catch(() => {});
   ok(/⚠ frame/i.test(await pg.locator('.agpage').innerText()), 'an example with a missing frame is flagged in the list');
   await pg.click('[data-trainopen]'); await pg.waitForSelector('.trwarn');
   ok(/No frame was uploaded/.test(await pg.locator('.trwarn').innerText()), 'and explained in the detail');

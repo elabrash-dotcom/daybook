@@ -4,8 +4,23 @@
 --    private 'cash-snapshots' bucket, and an evidence hold (the existing cash_events.preserve) keeps them from being archived.
 --  * One example per event (unique key), however many times the label is set, cleared or edited.
 --  * The structured JSON is stored on the row, so it survives even after the event itself expires.
--- Additive only: no existing column, constraint, policy or row is changed. Applying this file does not collect anything by itself;
+-- Retention: the evidence hold placed for an example lasts cash_retention.policy.training_days (180) from collection, then a daily job
+-- releases it, unless a person has also placed their own hold (cash_events.user_hold). Excluding an example or removing the false label
+-- releases it at once, again without touching a person's hold.
+-- Additive only: no existing column, constraint, policy or row is changed (one new column on cash_events: user_hold). Applying this file does not collect anything by itself;
 -- run public.cash_training_backfill(<owner>) once if events labelled before this migration should be collected too.
+
+
+-- 0. Who placed a hold. cash_events.preserve stays the single flag the retention worker reads; user_hold records that a PERSON wants it
+--    kept. Holds that already exist when this migration first runs are people's holds.
+do $$ begin
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'cash_events' and column_name = 'user_hold') then
+    alter table public.cash_events add column user_hold boolean not null default false;
+    update public.cash_events set user_hold = true where preserve;
+  end if;
+end $$;
+grant update (user_hold) on public.cash_events to authenticated;
+alter table cash_retention.policy add column if not exists training_days integer not null default 180 check (training_days >= 1);
 
 create table if not exists public.cash_training_examples (
   id            uuid primary key default gen_random_uuid(),
@@ -25,7 +40,10 @@ create table if not exists public.cash_training_examples (
   image_state   text not null default 'missing' check (image_state in ('ok', 'raw_only', 'annotated_only', 'archived', 'missing')),
   status        text not null default 'collected' check (status in ('collected', 'reviewed', 'excluded', 'withdrawn')),
   review_note   text check (review_note is null or char_length(review_note) <= 500),
-  hold_set      boolean not null default false,                                     -- true when THIS feature placed the evidence hold
+  hold_set      boolean not null default false,                                     -- true while the training evidence hold is active
+  hold_until    timestamptz,                                                        -- collected (or re-included) + training_days
+  hold_released_at timestamptz,
+  hold_release_reason text check (hold_release_reason is null or hold_release_reason in ('expired', 'excluded', 'withdrawn')),
   meta          jsonb not null check (jsonb_typeof(meta) = 'object'),               -- the training JSON (schema daybook.cash.false_detection/1)
   collected_at  timestamptz not null default now(),
   collected_by  uuid,
@@ -43,6 +61,60 @@ revoke all on public.cash_training_examples from anon, authenticated;
 grant select on public.cash_training_examples to authenticated;
 drop policy if exists cash_training_select on public.cash_training_examples;
 create policy cash_training_select on public.cash_training_examples for select to authenticated using (owner_id = (select auth.uid()));
+
+-- Hold helpers. All writes to preserve made here are tagged 'training' so cash_hold_source() can tell them from a person's.
+create or replace function public.cash_training_place_hold(p_example uuid)
+returns void language plpgsql security definer set search_path = '' as $$
+declare v public.cash_training_examples; v_days integer;
+begin
+  select * into v from public.cash_training_examples where id = p_example;
+  if not found then return; end if;
+  select training_days into v_days from cash_retention.policy limit 1;
+  update public.cash_training_examples set hold_set = true, hold_until = now() + make_interval(days => coalesce(v_days, 180)), hold_released_at = null, hold_release_reason = null where id = p_example;
+  if v.event_id is not null then
+    perform set_config('daybook.hold_source', 'training', true);
+    update public.cash_events set preserve = true where id = v.event_id and not preserve;
+    perform set_config('daybook.hold_source', '', true);
+  end if;
+end $$;
+revoke all on function public.cash_training_place_hold(uuid) from public, anon, authenticated;
+
+-- Release the training hold of one example. The event itself stays held if a person also holds it.
+create or replace function public.cash_training_release_hold(p_example uuid, p_reason text)
+returns void language plpgsql security definer set search_path = '' as $$
+declare v public.cash_training_examples;
+begin
+  select * into v from public.cash_training_examples where id = p_example for update;
+  if not found or not v.hold_set then return; end if;
+  update public.cash_training_examples set hold_set = false, hold_released_at = now(), hold_release_reason = p_reason, updated_at = now() where id = v.id;
+  if v.event_id is not null then
+    perform set_config('daybook.hold_source', 'training', true);
+    update public.cash_events set preserve = false where id = v.event_id and preserve and not user_hold;
+    perform set_config('daybook.hold_source', '', true);
+    insert into cash_retention.audit (event_id, action) values (v.event_id, 'training hold released: ' || p_reason);
+  end if;
+end $$;
+revoke all on function public.cash_training_release_hold(uuid, text) from public, anon, authenticated;
+
+-- A person pressing "Release evidence hold" must not drop frames that are still under a valid training hold.
+create or replace function public.cash_hold_source()
+returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  if current_setting('daybook.hold_source', true) is distinct from 'training' then
+    if new.preserve then
+      new.user_hold := true;
+    else
+      new.user_hold := false;
+      if exists (select 1 from public.cash_training_examples x where x.event_id = new.id and x.hold_set and (x.hold_until is null or x.hold_until > now())) then
+        new.preserve := true;
+      end if;
+    end if;
+  end if;
+  return new;
+end $$;
+revoke all on function public.cash_hold_source() from public, anon, authenticated;
+drop trigger if exists cash_hold_source on public.cash_events;
+create trigger cash_hold_source before update of preserve on public.cash_events for each row execute function public.cash_hold_source();
 
 -- Core: create or refresh the example for one event. Safe to call any number of times.
 create or replace function public.cash_training_upsert(e public.cash_events)
@@ -73,36 +145,36 @@ begin
 
   insert into public.cash_training_examples
     (owner_id, event_id, event_uid, device_id, camera_label, store_key, class_name, detected_at, confidence, model_version, reason,
-     raw_path, annotated_path, image_state, hold_set, meta, collected_by)
+     raw_path, annotated_path, image_state, meta, collected_by)
   values
     (e.owner_id, e.id, e.event_uid, e.device_id, v_camera, e.store_key, coalesce(left(e.kind, 64), 'unknown'), e.detected_at, e.confidence, v_model, e.label_note,
-     e.snapshot_raw_path, e.snapshot_annotated_path, v_state, not e.preserve, v_meta, e.labelled_by)
+     e.snapshot_raw_path, e.snapshot_annotated_path, v_state, v_meta, e.labelled_by)
   on conflict (owner_id, device_id, event_uid) do nothing
   returning id into v_new_id;
 
   if v_new_id is not null then
-    if not e.preserve then update public.cash_events set preserve = true where id = e.id; end if;   -- the existing evidence hold (audited)
+    perform public.cash_training_place_hold(v_new_id);                       -- 180 days from collection
     return;
   end if;
 
-  -- Already collected: refresh what can legitimately change (note, frames that arrived later); never duplicate, never un-exclude.
+  -- Already collected: refresh what can legitimately change (note, frames that arrived later); never duplicate, never un-exclude,
+  -- never re-start an ended hold.
   select * into v_old from public.cash_training_examples where owner_id = e.owner_id and device_id = e.device_id and event_uid = e.event_uid;
   update public.cash_training_examples x set
       event_id = e.id, camera_label = coalesce(v_camera, x.camera_label), class_name = coalesce(left(e.kind, 64), x.class_name),
       confidence = e.confidence, model_version = v_model, reason = e.label_note,
       raw_path = coalesce(e.snapshot_raw_path, x.raw_path), annotated_path = coalesce(e.snapshot_annotated_path, x.annotated_path),
       image_state = v_state, meta = v_meta, updated_at = now(),
-      status = case when x.status = 'withdrawn' then 'collected' else x.status end,
-      hold_set = case when x.status = 'withdrawn' and not e.preserve then true else x.hold_set end
+      status = case when x.status = 'withdrawn' then 'collected' else x.status end
     where x.id = v_old.id;
-  if v_old.status = 'withdrawn' and not e.preserve then update public.cash_events set preserve = true where id = e.id; end if;
+  if v_old.status = 'withdrawn' then perform public.cash_training_place_hold(v_old.id); end if;   -- the false label is back: new 180 days
 end $$;
 revoke all on function public.cash_training_upsert(public.cash_events) from public, anon, authenticated;
 
 -- Trigger: runs only for events that are (or just stopped being) false detections, so normal detection traffic never touches it.
 create or replace function public.cash_training_on_event()
 returns trigger language plpgsql security definer set search_path = '' as $$
-declare v_ex public.cash_training_examples;
+declare v_id uuid;
 begin
   if new.label = 'false_detection' then
     -- Collection must never stop the user's label from saving: on any error the label still saves, the failure is written to the
@@ -116,11 +188,8 @@ begin
   elsif old.label = 'false_detection' then                                   -- the user took the false label off again
     update public.cash_training_examples set status = 'withdrawn', updated_at = now()
       where owner_id = new.owner_id and device_id = new.device_id and event_uid = new.event_uid and status <> 'excluded'
-      returning * into v_ex;
-    if v_ex.id is not null and v_ex.hold_set then
-      update public.cash_events set preserve = false where id = new.id and preserve;
-      update public.cash_training_examples set hold_set = false where id = v_ex.id;
-    end if;
+      returning id into v_id;
+    if v_id is not null then perform public.cash_training_release_hold(v_id, 'withdrawn'); end if;
   end if;
   return null;
 end $$;
@@ -130,10 +199,10 @@ drop trigger if exists cash_training_on_event on public.cash_events;
 create trigger cash_training_on_event after update of label, label_note, snapshot_raw_path, snapshot_annotated_path on public.cash_events
   for each row when (new.label = 'false_detection' or old.label = 'false_detection') execute function public.cash_training_on_event();
 
--- Review actions from the gateway: 'reviewed', 'excluded' (also releases a hold this feature placed), 'include' (collect again).
+-- Review actions from the gateway: 'reviewed', 'excluded' (releases the training hold at once), 'include' (collect again, new 180 days).
 create or replace function public.cash_training_review(p_owner uuid, p_id uuid, p_action text, p_note text default null)
 returns jsonb language plpgsql security definer set search_path = '' as $$
-declare v public.cash_training_examples; ev public.cash_events;
+declare v public.cash_training_examples;
 begin
   select * into v from public.cash_training_examples where id = p_id and owner_id = p_owner for update;
   if not found then return jsonb_build_object('ok', false, 'error', 'not found'); end if;
@@ -141,24 +210,31 @@ begin
     if v.status in ('excluded', 'withdrawn') then return jsonb_build_object('ok', false, 'error', 'include it again first'); end if;
     update public.cash_training_examples set status = 'reviewed', reviewed_at = now(), review_note = left(p_note, 500), updated_at = now() where id = v.id;
   elsif p_action = 'excluded' then
-    if v.hold_set and v.event_id is not null then update public.cash_events set preserve = false where id = v.event_id and preserve; end if;
-    update public.cash_training_examples set status = 'excluded', reviewed_at = now(), review_note = left(p_note, 500), hold_set = false, updated_at = now() where id = v.id;
+    update public.cash_training_examples set status = 'excluded', reviewed_at = now(), review_note = left(p_note, 500), updated_at = now() where id = v.id;
+    perform public.cash_training_release_hold(v.id, 'excluded');
   elsif p_action = 'include' then
     if v.status = 'withdrawn' then return jsonb_build_object('ok', false, 'error', 'the false label was removed on the event'); end if;
     update public.cash_training_examples set status = 'collected', review_note = left(p_note, 500), updated_at = now() where id = v.id;
-    if v.event_id is not null then
-      select * into ev from public.cash_events where id = v.event_id;
-      if found and not ev.preserve then
-        update public.cash_events set preserve = true where id = ev.id;
-        update public.cash_training_examples set hold_set = true where id = v.id;
-      end if;
-    end if;
+    perform public.cash_training_place_hold(v.id);
   else
     return jsonb_build_object('ok', false, 'error', 'bad action');
   end if;
   return jsonb_build_object('ok', true, 'id', v.id);
 end $$;
 revoke all on function public.cash_training_review(uuid, uuid, text, text) from public, anon, authenticated;
+
+-- Automatic retention: release every training hold that has reached its end date. Idempotent; p_now lets tests travel in time.
+create or replace function public.cash_training_expire(p_now timestamptz default now())
+returns integer language plpgsql security definer set search_path = '' as $$
+declare r record; n integer := 0;
+begin
+  for r in select id from public.cash_training_examples where hold_set and hold_until is not null and hold_until <= p_now order by hold_until limit 1000
+  loop
+    perform public.cash_training_release_hold(r.id, 'expired'); n := n + 1;
+  end loop;
+  return n;
+end $$;
+revoke all on function public.cash_training_expire(timestamptz) from public, anon, authenticated;
 
 -- Archive locations for the export (the retention schema is not readable from the app).
 create or replace function public.cash_training_assets(p_owner uuid, p_event_ids uuid[])
@@ -182,6 +258,15 @@ begin
   return n;
 end $$;
 revoke all on function public.cash_training_backfill(uuid) from public, anon, authenticated;
+
+-- Daily at 03:17 UTC (pg_cron, already used for the 5-minute reconciliation tick). Runs inside the database: no network, no AI.
+do $$
+begin
+  if exists (select 1 from pg_namespace where nspname = 'cron') then
+    perform cron.unschedule(jobid) from cron.job where jobname = 'cash-training-retention';
+    perform cron.schedule('cash-training-retention', '17 3 * * *', 'select public.cash_training_expire()');
+  end if;
+end $$;
 
 -- Live refresh of the Training data screen.
 do $$

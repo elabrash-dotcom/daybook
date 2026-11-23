@@ -903,14 +903,14 @@ let people = [], projects = [], tasks = [], shop = [], shopQ = '', shEditId = nu
 let sel = null;          // selected date
 let filter = {personId:null, projectId:null};   // independent facets, either or both may be set
 const CASH_PAGE = 20;
-const CASH_COLS = 'id,preserve,store_key,event_uid,detected_at,kind,confidence,track_id,bbox,detections,frame_width,frame_height,snapshot_raw_path,snapshot_annotated_path,clip_path,match_status,matched_payment_id,match_delta_seconds,match_locked,match_note,label,label_note,matched_payment:cash_pos_payments!cash_events_matched_payment_id_fkey(source_ref,cash_amount,total_amount,paid_at)';
+const CASH_COLS = 'id,preserve,user_hold,store_key,event_uid,detected_at,kind,confidence,track_id,bbox,detections,frame_width,frame_height,snapshot_raw_path,snapshot_annotated_path,clip_path,match_status,matched_payment_id,match_delta_seconds,match_locked,match_note,label,label_note,matched_payment:cash_pos_payments!cash_events_matched_payment_id_fkey(source_ref,cash_amount,total_amount,paid_at)';
 const CASH_LABELS = [{v:'confirmed_cash', e:'✅', t:'Confirmed Cash', s:'Cash'}, {v:'false_detection', e:'❌', t:'False Detection', s:'False'}, {v:'unsure', e:'❓', t:'Unsure', s:'Unsure'}, {v:'other', e:'➕', t:'Other', s:'Other'}];
 const CASH_STORES = {mcc:'MCC', mobiletek:'Mobiletek'};
 let cashHas = false, cashTodo = 0, cashLoaded = false, cashLoading = false, cashEvents = [], cashPayments = [], cashReports = [], cashMore = false, cashLimit = CASH_PAGE, cashErr = '', cashSeq = 0, cashToReview = 0;
 let cashFilt = {range:'today', day:'', store:'', label:'all'};
 let cashOpenId = null, cashImgs = {}, cashSide = {}, cashBoxes = true, cashNew = false, cashChan = null, cashViewerClose = null;
 let cashRestoreScroll = false;
-let cashView = 'events', trainRows = [], trainLoaded = false, trainLoading = false, trainErr = '', trainCount = null, trainOpenId = null, trainFilt = {status:'active', store:''}, trainBusy = '', trainSeq = 0, trainMissing = false, trainNote = '';
+let cashTrainHold = {}, cashView = 'events', trainRows = [], trainLoaded = false, trainLoading = false, trainErr = '', trainCount = null, trainOpenId = null, trainFilt = {status:'active', store:''}, trainBusy = '', trainSeq = 0, trainMissing = false, trainNote = '';
 let cashSync = null, cashSyncErr = '', cashSyncT = null, cashSyncNote = '', cashSyncBusy = false;
 let mode = 'day';        // day | history
 let histLimit = 60, showSomeday = false, tq = null, tsFocus = false;
@@ -2530,7 +2530,7 @@ async function cashStart(){
   }catch(_){ cashHas = false; }
   if(mode === 'day') render();
 }
-function cashStop(){ clearTimeout(cashSyncT); cashSync = null; cashSyncNote = ''; cashSyncBusy = false; if(cashViewerClose) cashViewerClose(); if(cashChan){ try{ sb.removeChannel(cashChan); }catch(_){} cashChan = null; } cashHas = false; cashView = 'events'; trainRows = []; trainLoaded = false; trainCount = null; trainOpenId = null; trainNote = ''; trainBusy = ''; trainSeq++; trainMissing = false; cashLoaded = false; cashEvents = []; cashPayments = []; cashReports = []; cashImgs = {}; cashOpenId = null; cashSeq++; }
+function cashStop(){ clearTimeout(cashSyncT); cashSync = null; cashSyncNote = ''; cashSyncBusy = false; if(cashViewerClose) cashViewerClose(); if(cashChan){ try{ sb.removeChannel(cashChan); }catch(_){} cashChan = null; } cashHas = false; cashView = 'events'; cashTrainHold = {}; trainRows = []; trainLoaded = false; trainCount = null; trainOpenId = null; trainNote = ''; trainBusy = ''; trainSeq++; trainMissing = false; cashLoaded = false; cashEvents = []; cashPayments = []; cashReports = []; cashImgs = {}; cashOpenId = null; cashSeq++; }
 function cashOpen(){
   mode = 'cash'; tq = null; cashOpenId = null; cashView = 'events'; trainOpenId = null; render(); window.scrollTo({top:0});
   cashLimit = CASH_PAGE; cashLoad(); cashSyncLoad();
@@ -2580,14 +2580,20 @@ function renderCashTile(){
 
 // ---- Training data: false detections collected automatically when an event is labelled False Detection ----
 const TRAIN_STATUS = {active:['collected','reviewed'], todo:['collected'], reviewed:['reviewed'], excluded:['excluded']};
-const TRAIN_COLS = 'id,event_id,event_uid,store_key,camera_label,device_id,class_name,detected_at,confidence,model_version,reason,image_state,status,review_note';
+const TRAIN_COLS = 'hold_set,hold_until,hold_release_reason,id,event_id,event_uid,store_key,camera_label,device_id,class_name,detected_at,confidence,model_version,reason,image_state,status,review_note';
 const trainBase = (q, withStatus) => { q = q.not('store_key', 'ilike', '%fairfield%'); if(withStatus) q = q.in('status', TRAIN_STATUS[trainFilt.status] || TRAIN_STATUS.active); if(trainFilt.store) q = q.eq('store_key', trainFilt.store); return q; };
 async function cashTrainCount(){
+  const was = trainCount, wasMissing = trainMissing;
   try{
     const {count, error} = await sb.from('cash_training_examples').select('id', {count:'exact', head:true}).not('store_key', 'ilike', '%fairfield%').in('status', TRAIN_STATUS.active);
     if(error){ trainMissing = true; trainCount = null; } else { trainMissing = false; trainCount = count || 0; }
   }catch(_){ trainMissing = true; trainCount = null; }
-  if(mode === 'cash') render();
+  if(mode === 'cash' && (trainCount !== was || trainMissing !== wasMissing)) cashRenderKeepNote();
+}
+function cashRenderKeepNote(){                                              // a redraw must never wipe a note that is being typed
+  const ta = $('#cashNote'), ev = cashEvents.find(e => e.id === cashOpenId);
+  if(ta && ev && ta.value !== (ev.label_note || '')) return;
+  cashRestoreScroll = true; render();
 }
 async function cashTrainLoad(){
   const my = ++trainSeq; trainLoading = true; trainErr = ''; if(mode === 'cash') render();
@@ -2750,7 +2756,7 @@ function cashDetail(ev, idx){
   return `<div class="agbody cashdet">${cashImgBlock(ev)}${dets}
     <div class="cashkv">${rows.map(r => `<span>${esc(r[0])}</span><b>${esc(r[1])}</b>`).join('')}</div>
     ${cashReviewControls(ev)}
-    <button type="button" class="agbtn" data-cashhold="${ev.preserve ? 0 : 1}" aria-pressed="${ev.preserve}">${ev.preserve ? "Release evidence hold" : "Preserve evidence"}</button>
+    ${cashHoldControls(ev)}
     <h5>Your label</h5><div class="cashlbls">${lbls}</div>
     ${ev.label ? `<textarea id="cashNote" class="cashnote" rows="2" maxlength="500" placeholder="Note (optional)" aria-label="Note">${esc(ev.label_note || '')}</textarea><div class="agacts"><button type="button" class="agbtn ok" data-cashnote="1">Save note</button>${next ? '<button type="button" class="agbtn" style="background:var(--ink);color:var(--bg)" data-cashnext="' + esc(next.id) + '">Next to review ›</button>' : ''}</div>` : ''}
   </div>`;
@@ -2770,7 +2776,7 @@ function trainDetail(r){
   else if(im.err) imgs = `<div class="cashnone">Couldn’t load the frames (${esc(im.err)}). <button type="button" class="agchip" data-trainimgs="${esc(r.id)}">Try again</button></div>`;
   else imgs = `<div class="trimgs"><figure><figcaption>Original</figcaption>${im.raw ? `<img class="cashimg" src="${esc(im.raw)}" alt="Original frame" decoding="async">` : '<div class="cashnone">Not available</div>'}</figure><figure><figcaption>Annotated</figcaption>${im.annotated ? `<img class="cashimg" src="${esc(im.annotated)}" alt="Annotated frame" decoding="async">` : '<div class="cashnone">Not available</div>'}</figure></div>`;
   const warn = r.image_state === 'ok' ? '' : `<div class="trwarn">${r.image_state === 'missing' ? 'No frame was uploaded for this detection.' : r.image_state === 'raw_only' ? 'Annotated frame is missing.' : r.image_state === 'annotated_only' ? 'Original frame is missing.' : 'Original was archived (re-encoded copy).'}</div>`;
-  const rows = [['Camera', (cashStoreName(r.store_key)) + (r.camera_label ? ' · ' + r.camera_label : '')], ['Class', r.class_name], r.confidence != null ? ['Confidence', cashPct(r.confidence)] : null, r.model_version ? ['Model', r.model_version] : null, ['Reason', r.reason || '—'], r.review_note ? ['Review note', r.review_note] : null].filter(Boolean);
+  const rows = [['Camera', (cashStoreName(r.store_key)) + (r.camera_label ? ' · ' + r.camera_label : '')], ['Class', r.class_name], r.confidence != null ? ['Confidence', cashPct(r.confidence)] : null, r.model_version ? ['Model', r.model_version] : null, ['Reason', r.reason || '—'], ['Frames kept', r.hold_set && r.hold_until ? 'until ' + dayLabel(sydYmd(Date.parse(r.hold_until))) : r.hold_release_reason === 'expired' ? 'hold ended after 180 days' : r.hold_release_reason ? 'hold released (' + r.hold_release_reason + ')' : '—'], r.review_note ? ['Review note', r.review_note] : null].filter(Boolean);
   const acts = r.status === 'excluded' || r.status === 'withdrawn'
     ? (r.status === 'excluded' ? `<button type="button" class="agbtn" data-trainact="include" data-trainid="${esc(r.id)}">Include again</button>` : '<div class="agfine">The false label was removed on the event.</div>')
     : `${r.status === 'reviewed' ? '' : `<button type="button" class="agbtn ok" data-trainact="reviewed" data-trainid="${esc(r.id)}">Mark reviewed</button>`}<button type="button" class="agbtn" data-trainact="excluded" data-trainid="${esc(r.id)}">Exclude</button>`;
@@ -2797,6 +2803,14 @@ function renderTraining(){
     h += '</div>';
   }
   return h;
+}
+function cashHoldControls(ev){
+  const th = cashTrainHold[ev.id], trainOn = !!(th && th.hold_set), until = trainOn && th.hold_until ? dayLabel(sydYmd(Date.parse(th.hold_until))) : '';
+  const note = trainOn ? `<div class="agfine">Frames are kept for training data${until ? ' until ' + esc(until) : ''}.</div>` : '';
+  if(ev.user_hold) return `${note}<button type="button" class="agbtn" data-cashhold="0" aria-pressed="true">Release evidence hold</button>`;
+  if(ev.preserve && trainOn) return `${note}<button type="button" class="agbtn" data-cashhold="keep" aria-pressed="false">Keep permanently</button>`;
+  if(ev.preserve) return `<button type="button" class="agbtn" data-cashhold="0" aria-pressed="true">Release evidence hold</button>`;
+  return `<button type="button" class="agbtn" data-cashhold="1" aria-pressed="false">Preserve evidence</button>`;
 }
 function cashReportBlock(){
   const r = cashReports[0]; if(!r) return '';
@@ -2850,7 +2864,7 @@ async function cashSetLabel(id, v){
   cashRestoreScroll = true; render();
   const {error} = await sb.from('cash_events').update({label: nl, label_note: nl ? (ev.label_note || null) : null}).eq('id', id);
   if(error){ ev.label = prev.label; ev.label_note = prev.note; if(!prev.label && nl) cashToReview++; else if(prev.label && !nl) cashToReview = Math.max(0, cashToReview - 1); toast('Couldn’t save the label: ' + error.message); cashRestoreScroll = true; render(); return; }
-  cashStart(); cashTrainCount();
+  cashStart(); cashTrainCount(); if(nl === 'false_detection') cashTrainHoldLoad(id);
 }
 async function cashSaveNote(id){
   const ev = cashEvents.find(e => e.id === id), ta = $('#cashNote'); if(!ev || !ta || !ev.label) return;
@@ -2866,10 +2880,22 @@ async function cashReview(id, action, paymentId){
     await cashLoad();
   }catch(e){ toast('Couldn’t save reconciliation: '+e.message); }
 }
+async function cashTrainHoldLoad(id){
+  let th = null, hold = null;
+  try{
+    const [t, h] = await Promise.all([sb.from('cash_training_examples').select('event_id,hold_set,hold_until').eq('event_id', id).limit(1), sb.from('cash_events').select('preserve,user_hold').eq('id', id).limit(1)]);
+    th = (t.data && t.data[0]) || null; hold = (h.data && h.data[0]) || null;
+  }catch(_){}
+  const ev = cashEvents.find(x => x.id === id), same = JSON.stringify(cashTrainHold[id] || null) === JSON.stringify(th) && (!hold || !ev || (ev.preserve === hold.preserve && !!ev.user_hold === !!hold.user_hold));
+  cashTrainHold[id] = th; if(hold && ev){ ev.preserve = hold.preserve; ev.user_hold = hold.user_hold; }
+  const ta = $('#cashNote');                                              // never wipe a note that is being typed
+  if(!same && mode === 'cash' && cashOpenId === id && !(ta && ta.value !== ((ev && ev.label_note) || ''))){ cashRestoreScroll = true; render(); }
+}
 function cashSelect(id){
   cashOpenId = cashOpenId === id ? null : id; cashRestoreScroll = true; render();
   const ev = cashEvents.find(e => e.id === id);
   if(cashOpenId && ev && (ev.snapshot_raw_path || ev.snapshot_annotated_path || ev.clip_path)) cashImages(id);
+  if(cashOpenId && ev && ev.label === 'false_detection') cashTrainHoldLoad(id);
 }
 $('#app').addEventListener('click', e => {
   const shot = e.target.closest('[data-cashimg]'); if(shot && mode === 'cash'){ cashViewOpen(shot.dataset.cashimg); return; }
@@ -2879,12 +2905,14 @@ $('#app').addEventListener('click', e => {
   const d = t.dataset;
   if(d.cashopen) cashSelect(d.cashopen);
   else if(d.cashhold !== undefined && cashOpenId){
-    const id = cashOpenId, hold = d.cashhold === '1';
-    if(!hold && !confirm('Release this hold and resume scheduled retention?')) return;
+    const id = cashOpenId, mode_ = d.cashhold;                       // '1' preserve, 'keep' (keep permanently), '0' release
+    if(mode_ === '0' && !confirm('Release your hold? Frames kept for training data stay kept until that ends.')) return;
     t.disabled = true;
-    sb.from('cash_events').update({preserve:hold}).eq('id', id).select('id,preserve').single().then(({data,error})=>{
+    const patch = mode_ === '0' ? {preserve:false, user_hold:false} : mode_ === 'keep' ? {user_hold:true} : {preserve:true, user_hold:true};
+    sb.from('cash_events').update(patch).eq('id', id).select('id,preserve,user_hold').single().then(({data,error})=>{
       if(error || !data){ t.disabled=false; toast('Evidence hold could not be saved'); return; }
-      const ev=cashEvents.find(x=>x.id===id); if(ev) ev.preserve=data.preserve;
+      const ev=cashEvents.find(x=>x.id===id); if(ev){ ev.preserve=data.preserve; ev.user_hold=data.user_hold; }
+      if(mode_ === '0' && data.preserve) toast('Your hold is released. The frames stay kept for training data.');
       render();
     });
   }
