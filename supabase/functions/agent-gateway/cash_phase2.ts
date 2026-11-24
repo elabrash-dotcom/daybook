@@ -22,15 +22,18 @@ const money = (v: unknown) => "$" + (Number(v) || 0).toLocaleString("en-AU", {mi
 const time = (iso: string) => new Intl.DateTimeFormat("en-AU", {timeZone:"Australia/Sydney",hour:"numeric",minute:"2-digit"}).format(new Date(iso));
 const displayDate = (s: string) => new Intl.DateTimeFormat("en-AU", {timeZone:"Australia/Sydney",day:"numeric",month:"short",year:"numeric"}).format(new Date(s + "T12:00:00Z"));
 
-function cleanPayment(v: unknown) {
+export function cleanPayment(v: unknown) {
   const x = v && typeof v === "object" ? v as Record<string, unknown> : {};
+  const source=String(x.source||"invoice").toLowerCase(), payRef=String(x.payment_ref||"");
+  if(source!=="invoice"&&source!=="ticket") return null;
+  if(source==="ticket"&&!payRef) return null;                 // a ticket can be paid in several parts: each part needs its own payment id
   const storeId=String(x.store_id||""), storeKey=String(x.store_key||"").toLowerCase(), sourceUuid=String(x.source_uuid||""), ref=String(x.invoice_number||x.source_ref||"");
   const paidAt=String(x.paid_at||""), businessDate=String(x.business_date||""), method=String(x.payment_method||"").toLowerCase(), status=String(x.status||"").toLowerCase();
   const cash=Number(x.cash_amount), total=x.total_amount == null ? null : Number(x.total_amount);
   if(!UUID.test(storeId)||!STORE_KEY.test(storeKey)||!sourceUuid||sourceUuid.length>160||!ref||ref.length>80||!Number.isFinite(Date.parse(paidAt))||!DATE.test(businessDate)) return null;
   if(method!=="cash"||status!=="completed"||!(cash>0)||cash>1e7||(total!==null&&(!Number.isFinite(total)||total<0||total>1e7))) return null;
   if(storeKey!=="mcc"||storeId!==MCC_POS_STORE_ID) return null; // Fairfield and stores without detector coverage are refused.
-  return {store_id:storeId,store_key:storeKey,source:"invoice",source_uuid:sourceUuid,source_ref:ref,payment_ref:String(x.payment_ref||"").slice(0,100),paid_at:new Date(paidAt).toISOString(),business_date:businessDate,cash_amount:cash,bank_amount:0,total_amount:total,payment_method:"cash",staff:String(x.staff||"").slice(0,120)||null,raw:{stockwise_status:"completed",stockwise_payment_method:"cash"},fetched_at:new Date().toISOString()};
+  return {store_id:storeId,store_key:storeKey,source,source_uuid:sourceUuid,source_ref:ref,payment_ref:String(x.payment_ref||"").slice(0,100),paid_at:new Date(paidAt).toISOString(),business_date:businessDate,cash_amount:cash,bank_amount:0,total_amount:total,payment_method:"cash",staff:String(x.staff||"").slice(0,120)||null,raw:{stockwise_status:"completed",stockwise_payment_method:"cash"},fetched_at:new Date().toISOString()};
 }
 
 export async function reconcileStore(sb: SupabaseClient, ownerId: string, storeKey: string, now = new Date()) {
@@ -67,11 +70,11 @@ export async function handleCashSync(req: Request, agent: CashAgent, sb: Supabas
   const good=clean as NonNullable<(typeof clean)[number]>[];
   const known=new Set<string>();
   if(good.length){
-    const {data:have,error:he}=await sb.from("cash_pos_payments").select("source_uuid,payment_ref").eq("owner_id",agent.owner_id).eq("source","invoice").in("source_uuid",good.map((x)=>x.source_uuid));
-    if(he) throw he; for(const r of have||[]) known.add(`${r.source_uuid}|${r.payment_ref}`);
+    const {data:have,error:he}=await sb.from("cash_pos_payments").select("source,source_uuid,payment_ref").eq("owner_id",agent.owner_id).in("source",["invoice","ticket"]).in("source_uuid",good.map((x)=>x.source_uuid));
+    if(he) throw he; for(const r of have||[]) known.add(`${r.source}|${r.source_uuid}|${r.payment_ref}`);
     const {error}=await sb.from("cash_pos_payments").upsert(good.map((x)=>({...x,owner_id:agent.owner_id})),{onConflict:"owner_id,source,source_uuid,payment_ref"}); if(error) throw error;
   }
-  const newCount=good.filter((x)=>!known.has(`${x.source_uuid}|${x.payment_ref}`)).length;
+  const newCount=good.filter((x)=>!known.has(`${x.source}|${x.source_uuid}|${x.payment_ref}`)).length;
   // Record the sync (also when it found nothing): this is the "last successful sync" and what the 7:05 PM report checks.
   const {data:job}=await sb.from("cash_sync_jobs").select("id").eq("owner_id",agent.owner_id).in("status",["starting","running"]).gt("created_at",new Date(Date.now()-STALE_JOB_MINUTES*60e3).toISOString()).limit(1).maybeSingle();
   const {error:le}=await sb.from("cash_sync_log").insert({owner_id:agent.owner_id,store_key:"mcc",accepted:good.length,new_count:newCount,job_id:job?.id??null}); if(le) throw le;

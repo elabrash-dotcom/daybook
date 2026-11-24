@@ -2536,7 +2536,7 @@ function cashOpen(){
   cashLimit = CASH_PAGE; cashLoad(); cashSyncLoad();
 }
 // ---- Sync POS Now: starts the existing StockWise agent (real fetch), shows progress, then refreshes the screen ----
-const cashN = n => n + ' new invoice' + (n === 1 ? '' : 's');
+const cashN = n => n + ' new cash payment' + (n === 1 ? '' : 's');
 async function cashSyncLoad(){
   const was = !!(cashSync && cashSync.active);
   try{ const r = await agCall('GET', '/cash/sync/status'); if(r && r.ok){ cashSync = r; cashSyncErr = ''; } }

@@ -46,7 +46,7 @@ const status = () => {
   await pg.goto('http://localhost:8765/index.html');
   await pg.waitForSelector('[data-cash]', {timeout: 20000}); await pg.click('[data-cash]'); await pg.waitForSelector('[data-cashsync]');
   const idle = await pg.locator('.cashsync').innerText();
-  ok(/Sync POS Now/.test(idle) && /Last successful sync/.test(idle) && /0 new invoices/.test(idle), 'idle: button, last successful sync time and imported count: ' + idle.replace(/\n/g, ' | ').slice(0, 120));
+  ok(/Sync POS Now/.test(idle) && /Last successful sync/.test(idle) && /0 new cash payments/.test(idle), 'idle: button, last successful sync time and imported count: ' + idle.replace(/\n/g, ' | ').slice(0, 120));
   ok(/1:00 PM and 6:45 PM/.test(idle), 'shows the two scheduled sync times');
   const readsBefore = eventReads;
   await pg.click('[data-cashsync]'); await pg.waitForSelector('[data-cashsync][disabled]');
@@ -56,7 +56,7 @@ const status = () => {
   ok(posts.length === 1, 'pressing again while running does not start a second run');
   await pg.waitForFunction(() => /Last manual sync/.test(document.querySelector('.cashsync').innerText), null, {timeout: 15000});
   const done = await pg.locator('.cashsync').innerText();
-  ok(/2 new invoices/.test(done) && !(await pg.locator('[data-cashsync]').isDisabled()), 'success: imported count shown and the button is available again: ' + done.replace(/\n/g, ' | ').slice(0, 140));
+  ok(/2 new cash payments/.test(done) && !(await pg.locator('[data-cashsync]').isDisabled()), 'success: imported count shown and the button is available again: ' + done.replace(/\n/g, ' | ').slice(0, 140));
   await pg.waitForTimeout(500);
   ok(eventReads > readsBefore, 'the reconciliation screen is refreshed after the sync finishes (' + readsBefore + ' -> ' + eventReads + ' event reads)');
   // conflict (another sync already running)
